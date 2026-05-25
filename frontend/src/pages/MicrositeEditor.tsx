@@ -3014,10 +3014,10 @@ function BioTab({ formData, onChange }: BioTabProps) {
   return (
     <div className="space-y-6">
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">
+        <label className="block text-sm font-medium text-slate-700 mb-1" htmlFor="micrositeeditor-biography">
           Biography
         </label>
-        <textarea
+        <textarea id="micrositeeditor-biography"
           value={formData.bio || ''}
           onChange={(e) => onChange('bio', e.target.value)}
           placeholder="Tell bookers about yourself, your experience, and what makes your performances special..."
