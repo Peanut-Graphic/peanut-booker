@@ -1,0 +1,41 @@
+# PHP backend tests + coverage gate.
+# Added in Wave 2 of the ecosystem testing scrub. phpunit.xml already configured
+# coverage (Clover -> tests/coverage/clover.xml) but there was no backend CI to
+# run or enforce it (only frontend accessibility). This plugin has no composer.json
+# and runs the PHPUnit phar directly with a self-contained mock-WP bootstrap, so CI
+# installs phpunit via setup-php's `tools:` rather than `composer install`.
+# Follows DOCUMENTATION/testing-standard/ci-templates/php-plugin-tests.yml (adapted).
+name: tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  php-tests:
+    runs-on: ubuntu-latest
+    env:
+      MIN_COVERAGE: "30"   # ratchet up after first green run
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP (pcov + phpunit phar — no composer in this repo)
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          coverage: pcov
+          tools: phpunit:10
+
+      - name: Unit tests with coverage (self-contained mock-WP bootstrap)
+        run: phpunit --coverage-clover=tests/coverage/clover.xml
+
+      - name: Coverage gate
+        run: php "${{ github.workspace }}/coverage-gate.php" tests/coverage/clover.xml "$MIN_COVERAGE"
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: php-coverage
+          path: tests/coverage/
