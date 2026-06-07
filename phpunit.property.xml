@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Dedicated config for the property suite (net 6).
+  Runs the pure-function property tests in isolation with a minimal bootstrap
+  (no WordPress boot, no legacy unit mocks). Kept fast + deterministic.
+-->
+<phpunit
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.0/phpunit.xsd"
+    bootstrap="tests/Property/bootstrap.php"
+    colors="true"
+    beStrictAboutTestsThatDoNotTestAnything="true"
+    failOnRisky="true"
+    failOnWarning="true"
+    cacheDirectory=".phpunit.cache"
+>
+    <testsuites>
+        <testsuite name="Property">
+            <directory suffix="Test.php">tests/Property</directory>
+        </testsuite>
+    </testsuites>
+
+</phpunit>

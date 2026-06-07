@@ -16,6 +16,13 @@
         <testsuite name="Unit">
             <directory suffix="Test.php">tests/phpunit/unit</directory>
         </testsuite>
+        <!-- Property-based tests (net 6): pure functions, no WP runtime.
+             Also runnable in isolation via phpunit.property.xml (minimal bootstrap).
+             The legacy bootstrap here loads the plugin includes too, so they pass
+             under this config as well. -->
+        <testsuite name="Property">
+            <directory suffix="Test.php">tests/Property</directory>
+        </testsuite>
     </testsuites>
 
     <coverage>
