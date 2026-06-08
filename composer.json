@@ -19,6 +19,8 @@
         }
     },
     "scripts": {
+        "test": "phpunit",
+        "test:property": "phpunit -c phpunit.property.xml",
         "test:contract-wp": "phpunit -c phpunit.contract-wp.xml"
     }
 }
