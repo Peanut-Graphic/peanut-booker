@@ -7,15 +7,20 @@
         "php": ">=8.0"
     },
     "require-dev": {
-        "phpunit/phpunit": "^10.5",
+        "phpunit/phpunit": "^9.6",
+        "wp-phpunit/wp-phpunit": "^6.4",
         "yoast/phpunit-polyfills": "^2.0"
     },
     "config": {
         "sort-packages": true,
-        "optimize-autoloader": true
+        "optimize-autoloader": true,
+        "platform": {
+            "php": "8.3"
+        }
     },
     "scripts": {
         "test": "phpunit",
-        "test:property": "phpunit --testsuite=Property"
+        "test:property": "phpunit -c phpunit.property.xml",
+        "test:contract-wp": "phpunit -c phpunit.contract-wp.xml"
     }
 }
