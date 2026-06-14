@@ -16,7 +16,7 @@ on:
 jobs:
   security:
     name: Dependency audit (net 2)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, peanut-ci]
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
@@ -30,7 +30,7 @@ jobs:
 
   property:
     name: Property tests (net 6)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, peanut-ci]
     needs: security
     steps:
       - uses: actions/checkout@v4
