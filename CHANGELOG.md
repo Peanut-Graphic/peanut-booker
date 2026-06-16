@@ -2,6 +2,42 @@
 
 All notable changes to Peanut Booker will be documented in this file.
 
+## [Unreleased] - Schema-drift & reliability
+
+### Fixed
+- **Microsite analytics table was never created** (P0). The public per-pageview
+  tracking endpoint wrote to `pb_microsite_analytics`, which had no `CREATE TABLE`
+  anywhere. Added the table to the activator dbDelta set; the public writer now
+  fail-safes (SHOW TABLES guard) so a missing table can never spam DB errors on
+  anonymous requests, and still bumps the microsite's own view count.
+- **External-gig columns missing from `pb_availability`** (P0). `event_time`,
+  `is_public`, and `ticket_url` were written but never defined. Added to the
+  dbDelta schema plus an idempotent migration for existing installs.
+- **Silent write/read failures from wrong column names** (P1):
+  - subscriptions: dropped the non-existent `tier` write (real column is
+    `plan_type`, already populated; tier capabilities are applied to the user).
+  - bookings: added a real `cancellation_date` column (the cancel write and the
+    API formatter both already expected it).
+  - payouts: `SUM(payout_amount)` → `SUM(performer_payout)`; response reads of
+    `payout_amount`/`commission_amount` now read `performer_payout`/`platform_commission`.
+  - conversations: `SELECT content` / `$msg->content` → `message`.
+  - admin performer search: WHERE/COUNT referenced non-existent `stage_name`/`email`
+    columns; now joins postmeta (`_pb_stage_name`) and `wp_users` (email/display_name).
+
+### Changed
+- **Self-healing migration on upgrade.** `Peanut_Booker_Database::check_db_version()`
+  now runs on every request behind a cheap version gate, re-runs dbDelta + idempotent
+  ALTERs, and detects schema drift (a missing expected column even when the version
+  option says we are current) — mirroring the PEANUT-CONNECT gold-standard pattern.
+  `PEANUT_BOOKER_DB_VERSION` bumped 1.3.0 → 1.4.0.
+
+### Added
+- **Schema-vs-code drift guard (CI).** New `tests/SchemaDrift` suite
+  (`phpunit.schema.xml`) statically asserts every column written via
+  `$wpdb->insert/->update` or the Database wrappers to a `pb_*` table exists in
+  the dbDelta CREATE schema, plus migration/version consistency and runtime
+  migration behaviour. Wired as a blocking CI job.
+
 ## [1.5.0] - 2024-12-19
 
 ### Added

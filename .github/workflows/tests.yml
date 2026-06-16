@@ -2,6 +2,9 @@
 #
 # Net 2 (security): composer audit, non-blocking (`|| true`) — ratchet to blocking later.
 # Net 6 (property): the pure-function property suite (tests/Property), no WP runtime.
+# Schema-drift guard (tests/SchemaDrift): static analysis asserting every column
+#   the plugin writes to a pb_* table exists in the dbDelta CREATE schema, plus
+#   migration/version consistency. Pure static + a stubbed runtime, no DB — blocking.
 #
 # The legacy WP-mocked Unit suite (tests/phpunit/unit) is run non-blocking: it has
 # pre-existing drift from the code under newer PHP and is tracked separately. The
@@ -47,6 +50,9 @@ jobs:
 
       - name: Property suite (pure functions, no WordPress)
         run: vendor/bin/phpunit -c phpunit.property.xml
+
+      - name: Schema-drift guard (blocking — code writes must match dbDelta schema)
+        run: vendor/bin/phpunit -c phpunit.schema.xml
 
       - name: Legacy unit suite (non-blocking — pre-existing drift, tracked)
         continue-on-error: true

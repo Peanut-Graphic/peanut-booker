@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Dedicated config for the schema-drift guard suite.
+
+  These tests perform STATIC source analysis only — they parse the activator's
+  dbDelta CREATE TABLE definitions and grep the plugin source for the columns it
+  writes via $wpdb->insert/->update (and the Database::insert/update wrappers),
+  then assert every written column actually exists in the table's schema.
+
+  No WordPress runtime, no $wpdb, no DB connection — fast and deterministic, so
+  it runs everywhere (including the self-hosted CI runner) without a WP test DB.
+-->
+<phpunit
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.6/phpunit.xsd"
+    bootstrap="tests/SchemaDrift/bootstrap.php"
+    colors="true"
+    beStrictAboutTestsThatDoNotTestAnything="true"
+    failOnRisky="true"
+    failOnWarning="true"
+    cacheResultFile=".phpunit.cache/schema.result"
+>
+    <testsuites>
+        <testsuite name="schema-drift">
+            <directory suffix="Test.php">tests/SchemaDrift</directory>
+        </testsuite>
+    </testsuites>
+</phpunit>
