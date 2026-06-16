@@ -125,7 +125,7 @@ trait Peanut_Booker_REST_Admin_Conversations {
 			// Get last message.
 			$last_msg = $wpdb->get_var(
 				$wpdb->prepare(
-					"SELECT content FROM $messages_table
+					"SELECT message FROM $messages_table
 					 WHERE (sender_id = %d AND recipient_id = %d) OR (sender_id = %d AND recipient_id = %d)
 					 ORDER BY created_at DESC LIMIT 1",
 					$row->participant_1_id,
@@ -227,7 +227,7 @@ trait Peanut_Booker_REST_Admin_Conversations {
 				'sender_type'     => $this->get_conversation_user_type( $msg->sender_id ),
 				'recipient_id'    => (int) $msg->recipient_id,
 				'recipient_name'  => $recipient ? $recipient->display_name : 'Unknown',
-				'content'         => $msg->content,
+				'content'         => $msg->message,
 				'is_read'         => (bool) $msg->is_read,
 				'booking_id'      => $msg->booking_id ? (int) $msg->booking_id : null,
 				'created_at'      => $msg->created_at,

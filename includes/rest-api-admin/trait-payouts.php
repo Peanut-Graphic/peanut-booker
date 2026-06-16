@@ -91,13 +91,13 @@ trait Peanut_Booker_REST_Admin_Payouts {
 		$bookings_table = Peanut_Booker_Database::get_table( 'bookings' );
 
 		$pending = $wpdb->get_var(
-			"SELECT COALESCE(SUM(payout_amount), 0)
+			"SELECT COALESCE(SUM(performer_payout), 0)
 			 FROM $bookings_table
 			 WHERE booking_status = 'completed' AND escrow_status = 'full_held'"
 		);
 
 		$released = $wpdb->get_var(
-			"SELECT COALESCE(SUM(payout_amount), 0)
+			"SELECT COALESCE(SUM(performer_payout), 0)
 			 FROM $bookings_table
 			 WHERE escrow_status = 'released'"
 		);
@@ -145,8 +145,8 @@ trait Peanut_Booker_REST_Admin_Payouts {
 				'event_date'        => $booking->event_date,
 				'completion_date'   => $booking->completion_date,
 				'total_amount'      => (float) $booking->total_amount,
-				'commission_amount' => (float) $booking->commission_amount,
-				'payout_amount'     => (float) $booking->payout_amount,
+				'commission_amount' => (float) $booking->platform_commission,
+				'payout_amount'     => (float) $booking->performer_payout,
 				'escrow_status'     => $booking->escrow_status,
 				'auto_release_date' => $auto_release_date,
 			);

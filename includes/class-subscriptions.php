@@ -190,10 +190,14 @@ class Peanut_Booker_Subscriptions {
             array( 'user_id' => $user_id )
         );
 
+        // Note: $tier (free/pro) is applied to the user's capabilities above via
+        // Peanut_Booker_Roles::grant_tier_capabilities(). The pb_subscriptions
+        // table has no `tier` column (only `plan_type` = monthly/annual), so we
+        // do NOT write $tier here — doing so silently dropped the value and
+        // constituted schema drift.
         $subscription_data = array(
             'wc_subscription_id' => $subscription->get_id(),
             'plan_type'          => $plan_type,
-            'tier'               => $tier,
             'status'             => self::STATUS_ACTIVE,
             'start_date'         => current_time( 'mysql' ),
             'next_billing_date'  => $subscription->get_date( 'next_payment' ),

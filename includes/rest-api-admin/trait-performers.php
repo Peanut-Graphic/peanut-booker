@@ -226,30 +226,40 @@ trait Peanut_Booker_REST_Admin_Performers {
 
         $performers_table = Peanut_Booker_Database::get_table( 'performers' );
 
+        // Search matches the performer's stage name (stored in postmeta on the
+        // linked profile_id as `_pb_stage_name`) and the WordPress user email
+        // (wp_users.user_email). Neither is a column of pb_performers, so we
+        // join the real sources rather than referencing non-existent columns.
+        // The joins are shared by both the COUNT and the SELECT so the two
+        // queries always agree on the matched set.
+        $joins = "LEFT JOIN {$wpdb->users} u ON p.user_id = u.ID
+                  LEFT JOIN {$wpdb->postmeta} pm_sn ON pm_sn.post_id = p.profile_id AND pm_sn.meta_key = '_pb_stage_name'";
+
         $where_clauses = array( '1=1' );
         $where_values  = array();
 
         if ( ! empty( $search ) ) {
-            $where_clauses[] = '(stage_name LIKE %s OR email LIKE %s)';
+            $where_clauses[] = '(pm_sn.meta_value LIKE %s OR u.user_email LIKE %s OR u.display_name LIKE %s)';
             $search_like     = '%' . $wpdb->esc_like( $search ) . '%';
+            $where_values[]  = $search_like;
             $where_values[]  = $search_like;
             $where_values[]  = $search_like;
         }
 
         if ( ! empty( $tier ) ) {
-            $where_clauses[] = 'tier = %s';
+            $where_clauses[] = 'p.tier = %s';
             $where_values[]  = $tier;
         }
 
         if ( ! empty( $status ) ) {
-            $where_clauses[] = 'status = %s';
+            $where_clauses[] = 'p.status = %s';
             $where_values[]  = $status;
         }
 
         $where_sql = implode( ' AND ', $where_clauses );
 
         // Get total count.
-        $count_sql = "SELECT COUNT(*) FROM $performers_table WHERE $where_sql";
+        $count_sql = "SELECT COUNT(DISTINCT p.id) FROM $performers_table p $joins WHERE $where_sql";
         if ( ! empty( $where_values ) ) {
             $count_sql = $wpdb->prepare( $count_sql, $where_values );
         }
@@ -258,8 +268,9 @@ trait Peanut_Booker_REST_Admin_Performers {
         // Get results.
         $sql = "SELECT p.*, u.user_email as email
                 FROM $performers_table p
-                LEFT JOIN {$wpdb->users} u ON p.user_id = u.ID
+                $joins
                 WHERE $where_sql
+                GROUP BY p.id
                 ORDER BY p.id DESC
                 LIMIT %d OFFSET %d";
 

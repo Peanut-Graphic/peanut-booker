@@ -267,7 +267,7 @@ trait Peanut_Booker_REST_Admin_Bookings {
                 $booking->event_city,
                 $booking->event_state,
                 $booking->total_amount,
-                $booking->commission_amount,
+                $booking->platform_commission,
                 $booking->booking_status,
                 $booking->escrow_status
             );
@@ -382,8 +382,8 @@ trait Peanut_Booker_REST_Admin_Bookings {
             'total_amount'                => (float) $booking->total_amount,
             'deposit_amount'              => (float) $booking->deposit_amount,
             'remaining_amount'            => (float) $booking->remaining_amount,
-            'commission_amount'           => (float) $booking->commission_amount,
-            'payout_amount'               => (float) $booking->payout_amount,
+            'commission_amount'           => (float) $booking->platform_commission,
+            'payout_amount'               => (float) $booking->performer_payout,
             'booking_status'              => $booking->booking_status,
             'escrow_status'               => $booking->escrow_status,
             'performer_confirmed'         => (bool) $booking->performer_confirmed,
