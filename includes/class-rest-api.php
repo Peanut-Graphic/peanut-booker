@@ -593,6 +593,15 @@ class Peanut_Booker_REST_API {
 
         $analytics_table = $wpdb->prefix . 'pb_microsite_analytics';
 
+        // Fail-safe: this endpoint is public (permission_callback => __return_true)
+        // and fires on every microsite pageview. If the analytics table is missing
+        // (e.g. an old install whose migration has not yet run), bail quietly after
+        // still bumping the microsite's own view_count, rather than emitting a DB
+        // error on every anonymous request. The migration in
+        // Peanut_Booker_Database::check_db_version() creates the table on upgrade.
+        $analytics_table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $analytics_table ) ) === $analytics_table;
+
+        if ( $analytics_table_exists ) {
         // Try to update existing row for this microsite/date/hour/referrer combination.
         $existing = $wpdb->get_row( $wpdb->prepare(
             "SELECT id FROM $analytics_table
@@ -630,6 +639,7 @@ class Peanut_Booker_REST_API {
                 )
             );
         }
+        } // end if ( $analytics_table_exists )
 
         // Also increment the total view_count on the microsite.
         if ( 'page_view' === $event_type ) {

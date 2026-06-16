@@ -47,8 +47,12 @@ class Peanut_Booker_Activator {
 
     /**
      * Create custom database tables.
+     *
+     * Public + idempotent (dbDelta): safe to re-run on upgrade. Called both by
+     * activate() and by Peanut_Booker_Database::check_db_version() so new tables
+     * and columns reach existing installs on auto-update.
      */
-    private static function create_tables() {
+    public static function create_tables() {
         global $wpdb;
 
         $charset_collate = $wpdb->get_charset_collate();
@@ -120,6 +124,7 @@ class Peanut_Booker_Activator {
             completion_date datetime DEFAULT NULL,
             payout_date datetime DEFAULT NULL,
             cancellation_reason text,
+            cancellation_date datetime DEFAULT NULL,
             cancelled_by bigint(20) unsigned DEFAULT NULL,
             notes text,
             created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -244,6 +249,9 @@ class Peanut_Booker_Activator {
             venue_name varchar(255) DEFAULT NULL,
             event_type varchar(100) DEFAULT NULL,
             event_location varchar(255) DEFAULT NULL,
+            event_time time DEFAULT NULL,
+            is_public tinyint(1) NOT NULL DEFAULT 1,
+            ticket_url varchar(255) DEFAULT NULL,
             notes varchar(255) DEFAULT NULL,
             created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -375,6 +383,30 @@ class Peanut_Booker_Activator {
             KEY status (status)
         ) $charset_collate;";
         dbDelta( $sql_microsites );
+
+        // Microsite analytics table.
+        // Written per-pageview by the public REST endpoint
+        // (Peanut_Booker_REST_API::track_microsite_view); read by the admin
+        // microsite-stats endpoint (trait-performers get_performer_microsite_stats).
+        // One row aggregates a (microsite, date, hour, referrer) bucket.
+        $table_microsite_analytics = $wpdb->prefix . 'pb_microsite_analytics';
+        $sql_microsite_analytics   = "CREATE TABLE $table_microsite_analytics (
+            id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+            microsite_id bigint(20) unsigned NOT NULL,
+            date date NOT NULL,
+            hour_of_day tinyint(3) unsigned DEFAULT NULL,
+            referrer_domain varchar(255) DEFAULT NULL,
+            page_views int(11) unsigned NOT NULL DEFAULT 0,
+            unique_visitors int(11) unsigned NOT NULL DEFAULT 0,
+            booking_clicks int(11) unsigned NOT NULL DEFAULT 0,
+            created_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY  (id),
+            UNIQUE KEY bucket (microsite_id, date, hour_of_day, referrer_domain),
+            KEY microsite_id (microsite_id),
+            KEY date (date)
+        ) $charset_collate;";
+        dbDelta( $sql_microsite_analytics );
     }
 
     /**

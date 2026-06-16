@@ -218,6 +218,17 @@ class Peanut_Booker_Database {
     }
 
     /**
+     * Register the upgrade hook. Called once from the core plugin bootstrap.
+     *
+     * Uses a cheap `get_option` version gate on every request (see
+     * check_db_version) so the common, already-migrated path costs a single
+     * option read.
+     */
+    public static function init() {
+        add_action( 'plugins_loaded', array( __CLASS__, 'check_db_version' ) );
+    }
+
+    /**
      * Check if database needs update.
      *
      * @return bool
@@ -228,27 +239,157 @@ class Peanut_Booker_Database {
     }
 
     /**
-     * Run database migrations if needed.
+     * Run migrations on upgrade — and self-heal schema drift.
+     *
+     * Two conditions trigger work:
+     *   1. The stored DB version is older than PEANUT_BOOKER_DB_VERSION (the
+     *      normal upgrade case).
+     *   2. The stored version already MATCHES but a column we expect for the
+     *      current version is actually missing (drift / partial-migration).
+     *
+     * Mirrors the gold-standard pattern in PEANUT-CONNECT
+     * (Peanut_Booker_Database :: check_db_version). Trusting the option without
+     * verifying the schema is a one-way trap: once the option is wrong, the
+     * migration never re-runs and the missing column breaks writes forever.
+     * This is exactly how the analytics table (no CREATE TABLE anywhere) and the
+     * external-gig columns reached production silently broken.
+     *
+     * dbDelta / create_tables() is idempotent, so re-running it is safe.
+     */
+    public static function check_db_version() {
+        $installed_version = get_option( 'peanut_booker_db_version', '0' );
+
+        $needs_migration = version_compare( $installed_version, PEANUT_BOOKER_DB_VERSION, '!=' )
+            || ! self::schema_matches_current_version();
+
+        if ( ! $needs_migration ) {
+            return;
+        }
+
+        // Idempotent column migrations for older installs, then a full dbDelta
+        // sweep (which creates any wholly-missing tables, e.g. analytics).
+        self::run_migrations( $installed_version );
+
+        require_once PEANUT_BOOKER_PATH . 'includes/class-activator.php';
+        if ( method_exists( 'Peanut_Booker_Activator', 'create_tables' ) ) {
+            Peanut_Booker_Activator::create_tables();
+        } else {
+            // create_tables is private in some builds; activate() is a superset.
+            Peanut_Booker_Activator::activate();
+        }
+
+        update_option( 'peanut_booker_db_version', PEANUT_BOOKER_DB_VERSION );
+    }
+
+    /**
+     * Backwards-compatible alias retained for any external callers.
      */
     public static function maybe_migrate() {
-        if ( self::needs_update() ) {
-            self::run_migrations();
-            require_once PEANUT_BOOKER_PATH . 'includes/class-activator.php';
-            Peanut_Booker_Activator::activate();
+        self::check_db_version();
+    }
+
+    /**
+     * Columns / tables introduced by each DB version bump. Keep this map in
+     * sync with includes/class-activator.php — every column a version bump adds
+     * must be listed here so drift detection can verify it post-migration.
+     *
+     * @return array<string, string[]> table-without-prefix => expected columns.
+     */
+    public static function expected_schema_additions() {
+        return array(
+            // 1.3.0: external-gig metadata on availability blocks.
+            'availability'        => array( 'block_type', 'event_name', 'venue_name', 'event_type', 'event_location' ),
+            // 1.4.0: external-gig public-listing fields + cancellation timestamp
+            //        + the previously-uncreated microsite analytics table.
+            'bookings'            => array( 'cancellation_date' ),
+            'microsite_analytics' => array( 'microsite_id', 'date', 'hour_of_day', 'referrer_domain', 'page_views', 'unique_visitors', 'booking_clicks' ),
+        );
+    }
+
+    /**
+     * Verify that every column expected for the current DB version actually
+     * exists. Returns false on the first miss (drift) so the caller re-runs the
+     * migration. Cheap: SHOW COLUMNS / SHOW TABLES, only reached after the
+     * version gate.
+     *
+     * @return bool
+     */
+    public static function schema_matches_current_version() {
+        global $wpdb;
+
+        foreach ( self::expected_schema_additions() as $table => $columns ) {
+            $table_name = $wpdb->prefix . 'pb_' . $table;
+
+            $table_exists = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table_name ) ) === $table_name;
+            if ( ! $table_exists ) {
+                return false;
+            }
+
+            // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+            $existing = $wpdb->get_col( "SHOW COLUMNS FROM `$table_name`" );
+            foreach ( $columns as $column ) {
+                if ( ! in_array( $column, $existing, true ) ) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Run specific idempotent migrations for schema changes.
+     *
+     * @param string $current_version DB version recorded before this run.
+     */
+    private static function run_migrations( $current_version ) {
+        // 1.3.0: external gigs base columns on the availability table.
+        if ( version_compare( $current_version, '1.3.0', '<' ) ) {
+            self::migrate_external_gigs_columns();
+        }
+
+        // 1.4.0: external-gig public-listing columns + booking cancellation date.
+        // (The microsite analytics table is created by the dbDelta sweep in
+        // check_db_version; dbDelta can ADD columns but cannot CREATE a missing
+        // table reliably across all stored states, so the sweep handles it.)
+        if ( version_compare( $current_version, '1.4.0', '<' ) ) {
+            self::migrate_external_gig_listing_columns();
+            self::migrate_booking_cancellation_date();
         }
     }
 
     /**
-     * Run specific migrations for schema changes.
+     * 1.4.0: add event_time / is_public / ticket_url to the availability table.
+     * Idempotent — guarded by SHOW COLUMNS.
      */
-    private static function run_migrations() {
+    private static function migrate_external_gig_listing_columns() {
         global $wpdb;
 
-        $current_version = get_option( 'peanut_booker_db_version', '0' );
+        $table   = $wpdb->prefix . 'pb_availability';
+        $columns = $wpdb->get_col( "SHOW COLUMNS FROM `$table`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 
-        // Migration for external gigs feature (added in 1.3.0).
-        if ( version_compare( $current_version, '1.3.0', '<' ) ) {
-            self::migrate_external_gigs_columns();
+        if ( ! in_array( 'event_time', $columns, true ) ) {
+            $wpdb->query( "ALTER TABLE `$table` ADD COLUMN event_time time DEFAULT NULL AFTER event_location" ); // phpcs:ignore WordPress.DB
+        }
+        if ( ! in_array( 'is_public', $columns, true ) ) {
+            $wpdb->query( "ALTER TABLE `$table` ADD COLUMN is_public tinyint(1) NOT NULL DEFAULT 1 AFTER event_time" ); // phpcs:ignore WordPress.DB
+        }
+        if ( ! in_array( 'ticket_url', $columns, true ) ) {
+            $wpdb->query( "ALTER TABLE `$table` ADD COLUMN ticket_url varchar(255) DEFAULT NULL AFTER is_public" ); // phpcs:ignore WordPress.DB
+        }
+    }
+
+    /**
+     * 1.4.0: add cancellation_date to the bookings table. Idempotent.
+     */
+    private static function migrate_booking_cancellation_date() {
+        global $wpdb;
+
+        $table   = $wpdb->prefix . 'pb_bookings';
+        $columns = $wpdb->get_col( "SHOW COLUMNS FROM `$table`" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+
+        if ( ! in_array( 'cancellation_date', $columns, true ) ) {
+            $wpdb->query( "ALTER TABLE `$table` ADD COLUMN cancellation_date datetime DEFAULT NULL AFTER cancellation_reason" ); // phpcs:ignore WordPress.DB
         }
     }
 

@@ -48,7 +48,7 @@ define( 'PEANUT_BOOKER_BASENAME', plugin_basename( __FILE__ ) );
 /**
  * Database version for schema updates.
  */
-define( 'PEANUT_BOOKER_DB_VERSION', '1.3.0' );
+define( 'PEANUT_BOOKER_DB_VERSION', '1.4.0' );
 
 /**
  * Check for WooCommerce dependency.

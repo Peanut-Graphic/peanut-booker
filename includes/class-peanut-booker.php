@@ -51,6 +51,15 @@ class Peanut_Booker {
         $this->plugin_name = 'peanut-booker';
 
         $this->load_dependencies();
+
+        // Self-healing schema migration. We are already inside the plugins_loaded
+        // cycle (peanut_booker_run is the plugins_loaded callback), so call the
+        // check directly rather than re-hooking plugins_loaded (which would fire
+        // too late this request). Gated by a cheap get_option version check, so
+        // the already-migrated path costs one option read; on auto-update it
+        // brings new tables/columns to existing installs.
+        Peanut_Booker_Database::check_db_version();
+
         $this->set_locale();
         $this->define_admin_hooks();
         $this->define_public_hooks();
