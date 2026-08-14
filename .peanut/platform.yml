@@ -1,0 +1,176 @@
+schema_version: 1
+project:
+  id: peanut-booker
+  name: Peanut Booker
+  classification: distributed-plugin
+  repository: https://github.com/Peanut-Graphic/peanut-booker.git
+  lifecycle: maintenance
+ownership:
+  platform: Peanut Graphic
+  deployment: Peanut Graphic
+  rollback: Peanut Graphic
+environments:
+  - name: distribution
+    kind: production
+    provider: GitHub Releases and Peanut License Server
+    url: "https://github.com/Peanut-Graphic/peanut-booker/releases"
+runtimes:
+  - name: php
+    baseline: WordPress compatibility matrix
+    declarations:
+      - { scope: dependency, source: peanut-booker.php, value: "Requires PHP 8.0" }
+      - { scope: dependency, source: composer.json, value: "require >=8.0; dependency resolution pinned to PHP 8.3" }
+      - { scope: ci, source: .github/workflows/tests.yml and wp-contract.yml, value: "PHP 8.3" }
+    production_observation: { status: not-applicable }
+  - name: node
+    baseline: "22"
+    declarations:
+      - { scope: dependency, source: README.md, value: "Node.js 18+" }
+      - { scope: dependency, source: frontend/package.json, value: "engines and packageManager missing; version 1.7.2" }
+      - { scope: ci, source: .github/workflows/accessibility.yml, value: "Node 20" }
+    production_observation: { status: not-applicable }
+  - name: wordpress
+    baseline: WordPress 6.0+ with WooCommerce 8.0+
+    declarations:
+      - { scope: dependency, source: peanut-booker.php, value: "Requires WordPress 6.0, PHP 8.0, and WooCommerce 8.0" }
+      - { scope: test, source: .github/workflows/wp-contract.yml, value: "WordPress latest on MySQL 8; WooCommerce is not installed in the contract lane" }
+    production_observation: { status: not-applicable }
+databases:
+  - name: host-database
+    role: transactional
+    baseline: Host MySQL 5.7+ or MariaDB 10.3+
+    declarations:
+      - { scope: documentation, source: README.md, value: "MySQL 5.7+ or MariaDB 10.3+" }
+      - { scope: dependency, source: includes/class-activator.php and includes/class-database.php, value: "eleven dbDelta tables plus a versioned ALTER TABLE migration during normal plugin boot" }
+      - { scope: ci, source: .github/workflows/wp-contract.yml, value: "mysql:8 real WordPress REST contract lane" }
+    production_equivalent_test: "yes"
+    production_observation: { status: not-applicable }
+services:
+  - kind: scheduler
+    baseline: WordPress cron on each plugin installation
+    declarations:
+      - { scope: dependency, source: includes/class-booking.php and includes/class-market.php, value: "daily escrow-release and reminder jobs plus hourly bid-deadline checks" }
+      - { scope: dependency, source: includes/class-peanut-booker.php, value: "weekly local ML-model training" }
+    production_observation: { status: not-applicable }
+  - kind: other
+    baseline: WooCommerce and optional WooCommerce Subscriptions on each plugin installation
+    declarations:
+      - { scope: dependency, source: peanut-booker.php and includes/class-woocommerce.php, value: "WooCommerce is a hard boot dependency and owns order, deposit, refund, escrow, and payment-gateway behavior" }
+      - { scope: dependency, source: includes/class-subscriptions.php, value: "optional WooCommerce Subscriptions events mutate Booker membership state" }
+    production_observation: { status: not-applicable }
+  - kind: other
+    baseline: Optional operator-configured integrations
+    declarations:
+      - { scope: dependency, source: includes/class-google-auth.php, value: "Google OAuth identity endpoints use per-install client credentials; documented calendar synchronization is not implemented by this class" }
+      - { scope: dependency, source: includes/class-ml-booking-predictor.php, value: "fixed http://127.0.0.1:8100 ML health, prediction, and training API" }
+    production_observation: { status: not-applicable }
+  - kind: other
+    baseline: Peanut License Server update and license API
+    declarations:
+      - { scope: dependency, source: peanut-booker.php and includes/class-peanut-license-client.php, value: "defaults to https://peanutgraphic.com/wp-json/peanut-api/v1 for license validation and WordPress update metadata" }
+    production_observation: { status: not-applicable }
+distribution:
+  mode: manual
+  source_of_truth: Historical manually packaged GitHub Release v1.7.2 and live Peanut License Server metadata
+  versioned_artifact: "yes"
+  signed: "no"
+  canary: unknown
+  rollback: unknown
+exceptions:
+  - id: PAR-207
+    concern: PHP and JavaScript runtime declarations do not define one supported build and host matrix
+    reason: The plugin permits PHP 8.0, Composer resolves for PHP 8.3, and CI tests PHP 8.3; README permits Node 18+, frontend CI uses Node 20, the fleet baseline is Node 22, and frontend/package.json declares neither engines.node nor packageManager.
+    risk: Customer hosts, dependency resolution, CI, and release builds can exercise materially different runtimes and package-manager behavior.
+    owner: Peanut Graphic
+    verification: Approve the supported WordPress PHP matrix, align the header and Composer platform declaration, exercise every supported PHP lane, and pin fleet Node and npm versions.
+    review_date: "2026-11-14"
+    status: proposed
+  - id: PAR-306
+    concern: Distributed host databases include MariaDB and older MySQL but required CI exercises only MySQL 8
+    reason: The plugin declares MySQL 5.7+ and MariaDB 10.3+, creates eleven dbDelta tables, and runs hand-written SHOW and ALTER TABLE migration queries during ordinary plugin boot, while the only real WordPress lane uses mysql:8 and does not exercise WooCommerce.
+    risk: MariaDB-, older-MySQL-, and WooCommerce-specific schema or migration behavior can fail on Booker sites without appearing in the required gate.
+    owner: Peanut Graphic
+    verification: Run activation, sequential upgrade, and real-WordPress/WooCommerce contracts against every supported MySQL and MariaDB lane.
+    review_date: "2026-11-14"
+    status: accepted
+  - id: PAR-310
+    concern: Install-specific payment, identity, subscription, and local ML production boundaries are unverified
+    reason: Booker depends on WooCommerce for order, refund, deposit, escrow, and payment-gateway behavior; optionally mutates membership from WooCommerce Subscriptions, uses operator-owned Google OAuth credentials, and calls a fixed localhost ML service, but repository workflows do not inventory active installations or prove integration revision, health, backup, or rollback state.
+    risk: Plugin releases and external service configuration can drift independently around financial, identity, and prediction workflows without a single auditable release or rollback contract.
+    owner: Peanut Graphic
+    verification: Inventory active installations and integration owners, test payment/subscription and OAuth failure paths, identify the ML service revision, and document backup and rollback boundaries.
+    review_date: "2026-11-14"
+    status: proposed
+  - id: PAR-402
+    concern: Peanut Booker is absent from the canonical signed publisher
+    reason: Peanut Meta publish-plugin.sh has no peanut-booker case, while the latest v1.7.2 release is an unsigned standalone ZIP with no manifest or canary evidence and its tag is 34 commits behind main.
+    risk: Maintained source cannot produce an authenticated current release through the fleet's authoritative WordPress publishing contract.
+    owner: Peanut Graphic
+    verification: Add a curated Booker package contract to the central publisher, dry-run it, ship an approved signed release, and prove its active canary and rollback behavior.
+    review_date: "2026-11-14"
+    status: proposed
+  - id: PAR-405
+    concern: Release contents, advertised metadata, source revision, and rollback evidence drift
+    reason: The v1.7.2 ZIP contains 192 entries including PHPUnit suites, frontend source, configuration, and generated coverage reports; current main is 34 commits ahead; and the live Booker update response serves Peanut Suite description, installation, FAQ, and changelog content. No rollback evidence was found.
+    risk: Customers receive unnecessary development artifacts and incorrect product information, maintained fixes remain unreleased, and an incident has no source-verifiable rollback control.
+    owner: Peanut Graphic
+    verification: Define and test a curated required-file contract, source Booker-specific update metadata, release the intended audited revision through the signed publisher, and prove rollback.
+    review_date: "2026-11-14"
+    status: proposed
+  - id: PAR-407
+    concern: Peanut Booker updates are not authenticated by a package-signature gate
+    reason: The live license server advertises a direct unsigned GitHub ZIP, the release has no signature manifest, and source inspection found no upgrader_pre_download or equivalent checksum/signature verification hook.
+    risk: Installed Booker copies cannot reject a tampered, substituted, or incomplete update package before WordPress installs it.
+    owner: Peanut Graphic
+    verification: Add and test a fail-closed updater that accepts the signed official artifact and rejects missing or invalid signatures and incomplete packages.
+    review_date: "2026-11-14"
+    status: proposed
+  - id: PAR-507
+    concern: GitHub repository archive conflicted with maintenance and release-parity scope
+    reason: Peanut-Graphic/peanut-booker was archived and read-only while the parity registry marked it maintenance lifecycle, program-scope active, and manifest-required; the user explicitly approved unarchiving solely to restore the manifest review workflow, and GitHub now reports archived=false.
+    risk: The archive had blocked required manifests, fixes, and central-publisher onboarding while the live license server continued to advertise the plugin.
+    owner: Peanut Graphic
+    verification: User approval is recorded in the parity tracker and an independent GitHub repository read confirms archived=false before commit and push.
+    review_date: "2026-08-14"
+    status: retired
+  - id: PAR-503
+    concern: Required pull-request workflows have no eligible runner for this public repository
+    reason: All three PR workflows target the organization self-hosted linux peanut-ci labels, while the Default runner group has visibility=all but allows_public_repositories=false; GitHub therefore leaves the jobs queued although six matching runners are online and idle. The only source change after the last green property and real-WordPress runs was migrating those workflows from ubuntu-latest to the ineligible self-hosted labels.
+    risk: Pull requests can remain indefinitely queued and branch protection has no required status checks, so changes can merge without fresh server-side verification.
+    owner: Peanut Graphic
+    verification: Permit this public repository in an appropriately isolated runner group or move the workflows to eligible GitHub-hosted runners, require the applicable contexts on main, and rerun all gates successfully.
+    review_date: "2026-08-21"
+    status: accepted
+verification:
+  status: source-audited
+  audited_commit: 134b416deffcb0b9556aac30e76e03b3cdd5347f
+  last_reviewed: "2026-08-14"
+  sources:
+    - peanut-booker.php
+    - composer.json
+    - README.md
+    - frontend/package.json
+    - includes/class-activator.php
+    - includes/class-database.php
+    - includes/class-booking.php
+    - includes/class-market.php
+    - includes/class-peanut-booker.php
+    - includes/class-woocommerce.php
+    - includes/class-subscriptions.php
+    - includes/class-google-auth.php
+    - includes/class-ml-booking-predictor.php
+    - includes/class-peanut-license-client.php
+    - .github/workflows/tests.yml
+    - .github/workflows/accessibility.yml
+    - .github/workflows/wp-contract.yml
+    - Peanut-Graphic/peanut-meta:scripts/publish-plugin.sh
+    - GitHub Release v1.7.2 ZIP metadata and contents
+    - Peanut License Server /updates/check response for peanut-booker
+    - GitHub repository archived-state response
+    - GitHub Actions permissions, organization runner inventory, and Default runner-group policy
+  outstanding:
+    - Align and pin PHP, Node, and npm declarations under PAR-207 and PAR-205.
+    - Add supported MariaDB, older-MySQL, and WooCommerce activation/migration/real-WordPress lanes under PAR-306.
+    - Inventory install-specific external services under PAR-310.
+    - Add Booker to the signed publisher, fix update metadata, authenticate packages, curate release contents, and prove canary and rollback under PAR-402, PAR-405, and PAR-407.
+    - Restore an eligible required CI runner path under PAR-503.
