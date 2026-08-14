@@ -133,6 +133,14 @@ exceptions:
     verification: User approval is recorded in the parity tracker and an independent GitHub repository read confirms archived=false before commit and push.
     review_date: "2026-08-14"
     status: retired
+  - id: PAR-503
+    concern: Required pull-request workflows have no eligible runner for this public repository
+    reason: All three PR workflows target the organization self-hosted linux peanut-ci labels, while the Default runner group has visibility=all but allows_public_repositories=false; GitHub therefore leaves the jobs queued although six matching runners are online and idle. The only source change after the last green property and real-WordPress runs was migrating those workflows from ubuntu-latest to the ineligible self-hosted labels.
+    risk: Pull requests can remain indefinitely queued and branch protection has no required status checks, so changes can merge without fresh server-side verification.
+    owner: Peanut Graphic
+    verification: Permit this public repository in an appropriately isolated runner group or move the workflows to eligible GitHub-hosted runners, require the applicable contexts on main, and rerun all gates successfully.
+    review_date: "2026-08-21"
+    status: accepted
 verification:
   status: source-audited
   audited_commit: 134b416deffcb0b9556aac30e76e03b3cdd5347f
@@ -159,8 +167,10 @@ verification:
     - GitHub Release v1.7.2 ZIP metadata and contents
     - Peanut License Server /updates/check response for peanut-booker
     - GitHub repository archived-state response
+    - GitHub Actions permissions, organization runner inventory, and Default runner-group policy
   outstanding:
     - Align and pin PHP, Node, and npm declarations under PAR-207 and PAR-205.
     - Add supported MariaDB, older-MySQL, and WooCommerce activation/migration/real-WordPress lanes under PAR-306.
     - Inventory install-specific external services under PAR-310.
     - Add Booker to the signed publisher, fix update metadata, authenticate packages, curate release contents, and prove canary and rollback under PAR-402, PAR-405, and PAR-407.
+    - Restore an eligible required CI runner path under PAR-503.
