@@ -63,17 +63,19 @@ describe('Modal', () => {
   describe('close button', () => {
     it('shows close button by default', () => {
       render(<Modal {...defaultProps} />);
-      expect(screen.getAllByRole('button', { name: /close modal/i })).toHaveLength(2);
+      expect(screen.getByRole('button', { name: /close modal/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /dismiss modal/i })).toBeInTheDocument();
     });
 
     it('hides close button when showClose is false', () => {
       render(<Modal {...defaultProps} showClose={false} />);
-      expect(screen.getAllByRole('button', { name: /close modal/i })).toHaveLength(1);
+      expect(screen.queryByRole('button', { name: /close modal/i })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /dismiss modal/i })).toBeInTheDocument();
     });
 
     it('calls onClose when close button is clicked', () => {
       render(<Modal {...defaultProps} />);
-      fireEvent.click(screen.getAllByRole('button', { name: /close modal/i })[1]);
+      fireEvent.click(screen.getByRole('button', { name: /close modal/i }));
       expect(defaultProps.onClose).toHaveBeenCalledTimes(1);
     });
   });

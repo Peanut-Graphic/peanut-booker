@@ -150,7 +150,7 @@ describe('Toast', () => {
 
       fireEvent.click(screen.getByText('Success'));
       const container = screen.getByRole('alert').parentElement;
-      expect(container).toHaveClass('fixed', 'bottom-4', 'right-4');
+      expect(container).toHaveClass('fixed', 'inset-x-3', 'bottom-4', 'sm:right-4');
     });
 
     it('does not render toast container when no toasts', () => {
