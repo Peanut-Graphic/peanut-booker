@@ -141,7 +141,7 @@ export default function Modal({
         type="button"
         className="fixed inset-0 bg-black/50 z-[999998] transition-opacity"
         onClick={onClose}
-        aria-label="Close modal"
+        aria-label="Dismiss modal"
       />
 
       {/* Modal */}
@@ -184,7 +184,7 @@ export default function Modal({
                     onClick={onClose}
                     className={clsx(
                       'text-slate-400 hover:text-slate-600 transition-colors',
-                      'rounded-lg p-1 -m-1',
+                      'min-h-11 min-w-11 rounded-lg p-3 -m-3 sm:p-2 sm:-m-2',
                       'focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500'
                     )}
                     aria-label="Close modal"
