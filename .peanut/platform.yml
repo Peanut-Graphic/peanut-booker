@@ -19,8 +19,8 @@ runtimes:
     baseline: WordPress compatibility matrix
     declarations:
       - { scope: dependency, source: peanut-booker.php, value: "Requires PHP 8.0" }
-      - { scope: dependency, source: composer.json, value: "require >=8.0; dependency resolution pinned to PHP 8.3" }
-      - { scope: ci, source: .github/workflows/tests.yml and wp-contract.yml, value: "PHP 8.3" }
+      - { scope: dependency, source: composer.json and composer.lock, value: "runtime require >=8.0; locked development resolver platform 8.1.0 for PHPUnit dependencies" }
+      - { scope: ci, source: .github/workflows/tests.yml and wp-contract.yml, value: "required exact PHP 8.0 parser/declaration, exact PHP 8.1 property, PHP 8.3 current property, and PHP 8.3 real WordPress/MySQL" }
     production_observation: { status: not-applicable }
   - name: node
     baseline: "22"
@@ -78,13 +78,13 @@ distribution:
   rollback: unknown
 exceptions:
   - id: PAR-207
-    concern: PHP and JavaScript runtime declarations do not define one supported build and host matrix
-    reason: The plugin permits PHP 8.0, Composer resolves for PHP 8.3, and CI tests PHP 8.3; README permits Node 18+, frontend CI uses Node 20, the fleet baseline is Node 22, and frontend/package.json declares neither engines.node nor packageManager.
-    risk: Customer hosts, dependency resolution, CI, and release builds can exercise materially different runtimes and package-manager behavior.
+    concern: JavaScript runtime declarations remain below the fleet baseline
+    reason: PAR-207 reconciles the PHP 8.0 host floor, PHP 8.1 locked development floor, exact-minimum required CI, and current/real-WordPress PHP 8.3; README permits Node 18+, frontend CI uses Node 20, the fleet baseline is Node 22, and frontend/package.json declares neither engines.node nor packageManager.
+    risk: Local frontend builds, CI, and release assets can exercise materially different Node/npm versions.
     owner: Peanut Graphic
-    verification: Approve the supported WordPress PHP matrix, align the header and Composer platform declaration, exercise every supported PHP lane, and pin fleet Node and npm versions.
+    verification: Pin fleet Node and npm versions and execute the frontend gates on the declared versions.
     review_date: "2026-11-14"
-    status: proposed
+    status: accepted
   - id: PAR-306
     concern: Distributed host databases include MariaDB and older MySQL but required CI exercises only MySQL 8
     reason: The plugin declares MySQL 5.7+ and MariaDB 10.3+, creates eleven dbDelta tables, and runs hand-written SHOW and ALTER TABLE migration queries during ordinary plugin boot, while the only real WordPress lane uses mysql:8 and does not exercise WooCommerce.
@@ -134,13 +134,13 @@ exceptions:
     review_date: "2026-08-14"
     status: retired
   - id: PAR-503
-    concern: Required pull-request workflows have no eligible runner for this public repository
-    reason: All three PR workflows target the organization self-hosted linux peanut-ci labels, while the Default runner group has visibility=all but allows_public_repositories=false; GitHub therefore leaves the jobs queued although six matching runners are online and idle. The only source change after the last green property and real-WordPress runs was migrating those workflows from ubuntu-latest to the ineligible self-hosted labels.
-    risk: Pull requests can remain indefinitely queued and branch protection has no required status checks, so changes can merge without fresh server-side verification.
+    concern: Required pull-request workflows previously had no eligible runner for this public repository
+    reason: PAR-207 restores all three test-only workflows to ubuntu-latest after the organization self-hosted runner group rejected this public repository. No runner-group or external account setting changes.
+    risk: Resolved in source; future runner-label drift could again suppress fresh server-side verification.
     owner: Peanut Graphic
-    verification: Permit this public repository in an appropriately isolated runner group or move the workflows to eligible GitHub-hosted runners, require the applicable contexts on main, and rerun all gates successfully.
+    verification: Require the applicable hosted contexts on main and retain a fail-closed workflow declaration contract.
     review_date: "2026-08-21"
-    status: accepted
+    status: retired
 verification:
   status: source-audited
   audited_commit: 134b416deffcb0b9556aac30e76e03b3cdd5347f
@@ -163,14 +163,14 @@ verification:
     - .github/workflows/tests.yml
     - .github/workflows/accessibility.yml
     - .github/workflows/wp-contract.yml
+    - scripts/verify-php-runtime.php
     - Peanut-Graphic/peanut-meta:scripts/publish-plugin.sh
     - GitHub Release v1.7.2 ZIP metadata and contents
     - Peanut License Server /updates/check response for peanut-booker
     - GitHub repository archived-state response
     - GitHub Actions permissions, organization runner inventory, and Default runner-group policy
   outstanding:
-    - Align and pin PHP, Node, and npm declarations under PAR-207 and PAR-205.
+    - Align and pin Node and npm declarations under PAR-205.
     - Add supported MariaDB, older-MySQL, and WooCommerce activation/migration/real-WordPress lanes under PAR-306.
     - Inventory install-specific external services under PAR-310.
     - Add Booker to the signed publisher, fix update metadata, authenticate packages, curate release contents, and prove canary and rollback under PAR-402, PAR-405, and PAR-407.
-    - Restore an eligible required CI runner path under PAR-503.
