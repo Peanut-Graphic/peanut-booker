@@ -1,4 +1,4 @@
-import { forwardRef, type InputHTMLAttributes, type TextareaHTMLAttributes, type ReactNode } from 'react';
+import { forwardRef, useId, type InputHTMLAttributes, type TextareaHTMLAttributes, type ReactNode } from 'react';
 import { clsx } from 'clsx';
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -10,7 +10,8 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 
 const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ className, label, error, hint, leftIcon, id, ...props }, ref) => {
-    const inputId = id || props.name;
+    const generatedId = useId();
+    const inputId = id || props.name || generatedId;
 
     return (
       <div className="space-y-1">
@@ -29,7 +30,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             id={inputId}
             className={clsx(
-              'w-full py-2 border rounded-lg text-sm transition-colors text-slate-900 dark:text-slate-100',
+              'w-full py-2 border rounded-lg text-base sm:text-sm transition-colors text-slate-900 dark:text-slate-100',
               leftIcon ? 'pl-10 pr-3' : 'px-3',
               'focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent',
               error
@@ -61,7 +62,8 @@ interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ className, label, error, hint, id, ...props }, ref) => {
-    const inputId = id || props.name;
+    const generatedId = useId();
+    const inputId = id || props.name || generatedId;
 
     return (
       <div className="space-y-1">
@@ -74,7 +76,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           ref={ref}
           id={inputId}
           className={clsx(
-            'w-full px-3 py-2 border rounded-lg text-sm transition-colors resize-y text-slate-900 dark:text-slate-100',
+            'w-full px-3 py-2 border rounded-lg text-base sm:text-sm transition-colors resize-y text-slate-900 dark:text-slate-100',
             'focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent',
             error
               ? 'border-red-300 focus:ring-red-500'

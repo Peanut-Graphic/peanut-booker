@@ -14,9 +14,21 @@ import Modal from '@/components/common/Modal';
 import Table from '@/components/common/Table';
 import Badge from '@/components/common/Badge';
 import Alert from '@/components/common/Alert';
-import Toast from '@/components/common/Toast';
+import { ToastProvider, useToast } from '@/components/common/Toast';
 import Pagination from '@/components/common/Pagination';
 import Card from '@/components/common/Card';
+
+function ToastHarness({
+  message,
+  type,
+}: {
+  message: string;
+  type: 'success' | 'error' | 'warning' | 'info';
+}) {
+  const toast = useToast();
+
+  return <button onClick={() => toast[type](message, 0)}>Show notification</button>;
+}
 
 describe('Accessibility (a11y) - PEANUT BOOKER', () => {
   describe('Button Component', () => {
@@ -241,12 +253,9 @@ describe('Accessibility (a11y) - PEANUT BOOKER', () => {
   describe('Modal Component', () => {
     it('should not have any automated a11y violations', async () => {
       const { container } = render(
-        <Modal isOpen={true} onClose={() => {}}>
-          <Modal.Header>Confirm Booking</Modal.Header>
-          <Modal.Body>Are you sure?</Modal.Body>
-          <Modal.Footer>
-            <Button>Confirm</Button>
-          </Modal.Footer>
+        <Modal isOpen={true} onClose={() => {}} title="Confirm Booking">
+          <p>Are you sure?</p>
+          <Button>Confirm</Button>
         </Modal>
       );
       const results = await axe(container);
@@ -255,9 +264,8 @@ describe('Accessibility (a11y) - PEANUT BOOKER', () => {
 
     it('should have proper dialog role', () => {
       render(
-        <Modal isOpen={true} onClose={() => {}}>
-          <Modal.Header>Cancel Booking</Modal.Header>
-          <Modal.Body>Confirm cancellation</Modal.Body>
+        <Modal isOpen={true} onClose={() => {}} title="Cancel Booking">
+          <p>Confirm cancellation</p>
         </Modal>
       );
       const dialog = screen.getByRole('dialog');
@@ -266,9 +274,8 @@ describe('Accessibility (a11y) - PEANUT BOOKER', () => {
 
     it('should have accessible header', () => {
       render(
-        <Modal isOpen={true} onClose={() => {}}>
-          <Modal.Header>Reschedule Event</Modal.Header>
-          <Modal.Body>Select new date</Modal.Body>
+        <Modal isOpen={true} onClose={() => {}} title="Reschedule Event">
+          <p>Select new date</p>
         </Modal>
       );
       expect(screen.getByText(/reschedule event/i)).toBeInTheDocument();
@@ -279,8 +286,8 @@ describe('Accessibility (a11y) - PEANUT BOOKER', () => {
       const onClose = vi.fn();
 
       render(
-        <Modal isOpen={true} onClose={onClose}>
-          <Modal.Body>Press Escape to close</Modal.Body>
+        <Modal isOpen={true} onClose={onClose} title="Keyboard dismissal">
+          <p>Press Escape to close</p>
         </Modal>
       );
 
@@ -288,8 +295,7 @@ describe('Accessibility (a11y) - PEANUT BOOKER', () => {
       dialog.focus();
       await user.keyboard('{Escape}');
 
-      // Modal should handle escape key
-      expect(dialog).toBeInTheDocument();
+      expect(onClose).toHaveBeenCalledOnce();
     });
   });
 
@@ -352,39 +358,39 @@ describe('Accessibility (a11y) - PEANUT BOOKER', () => {
 
   describe('Toast Component', () => {
     it('should not have any automated a11y violations', async () => {
+      const user = userEvent.setup();
       const { container } = render(
-        <Toast
-          message="Booking confirmed successfully"
-          type="success"
-          isVisible={true}
-        />
+        <ToastProvider>
+          <ToastHarness message="Booking confirmed successfully" type="success" />
+        </ToastProvider>
       );
+      await user.click(screen.getByRole('button', { name: /show notification/i }));
       const results = await axe(container);
       expect(results).toHaveNoViolations();
     });
 
-    it('should have proper role for notifications', () => {
+    it('should have proper role for notifications', async () => {
+      const user = userEvent.setup();
       render(
-        <Toast
-          message="Error: Payment failed"
-          type="error"
-          isVisible={true}
-        />
+        <ToastProvider>
+          <ToastHarness message="Error: Payment failed" type="error" />
+        </ToastProvider>
       );
+      await user.click(screen.getByRole('button', { name: /show notification/i }));
 
       // Toast should announce to screen readers
-      const alert = screen.getByRole('alert', { hidden: true });
+      const alert = screen.getByRole('alert');
       expect(alert).toBeInTheDocument();
     });
 
-    it('should have descriptive toast messages', () => {
+    it('should have descriptive toast messages', async () => {
+      const user = userEvent.setup();
       render(
-        <Toast
-          message="Booking rescheduled to March 30, 2026"
-          type="info"
-          isVisible={true}
-        />
+        <ToastProvider>
+          <ToastHarness message="Booking rescheduled to March 30, 2026" type="info" />
+        </ToastProvider>
       );
+      await user.click(screen.getByRole('button', { name: /show notification/i }));
 
       expect(screen.getByText(/rescheduled to march/i)).toBeInTheDocument();
     });
