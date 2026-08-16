@@ -50,6 +50,12 @@ A membership and booking platform for WordPress connecting performers with event
 - MySQL 5.7+ or MariaDB 10.3+
 - WooCommerce 8.0+
 
+The installed plugin supports PHP 8.0 and later. Local dependency resolution
+and the PHP test tooling require PHP 8.1 or later because the locked PHPUnit
+graph includes `doctrine/instantiator` 2.x. Required CI separately proves the
+complete tracked PHP tree on exact PHP 8.0, the property suite on exact PHP
+8.1, the current PHP 8.3 lane, and the real WordPress/MySQL contract on PHP 8.3.
+
 ## Installation
 
 1. Ensure WooCommerce is installed and activated
@@ -175,7 +181,7 @@ Performers can sync their availability with Google Calendar:
 ## Development
 
 ### Prerequisites
-- PHP 8.0+
+- PHP 8.1+ for Composer dependencies and test tooling
 - Composer
 - Node.js 18+
 - WooCommerce (for full functionality)

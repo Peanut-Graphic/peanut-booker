@@ -1,4 +1,4 @@
-import { forwardRef, type SelectHTMLAttributes } from 'react';
+import { forwardRef, useId, type SelectHTMLAttributes } from 'react';
 import { clsx } from 'clsx';
 import { ChevronDown } from 'lucide-react';
 
@@ -17,7 +17,8 @@ interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'chi
 
 const Select = forwardRef<HTMLSelectElement, SelectProps>(
   ({ className, label, error, hint, options, placeholder, id, ...props }, ref) => {
-    const selectId = id || props.name;
+    const generatedId = useId();
+    const selectId = id || props.name || generatedId;
 
     return (
       <div className="space-y-1">
@@ -31,7 +32,7 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
             ref={ref}
             id={selectId}
             className={clsx(
-              'w-full px-3 py-2 pr-10 border rounded-lg text-sm appearance-none transition-colors text-slate-900 dark:text-slate-100',
+              'w-full px-3 py-2 pr-10 border rounded-lg text-base sm:text-sm appearance-none transition-colors text-slate-900 dark:text-slate-100',
               'focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent',
               error
                 ? 'border-red-300 focus:ring-red-500'

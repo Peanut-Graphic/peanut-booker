@@ -76,7 +76,7 @@ function ToastContainer({ toasts, onRemove }: ToastContainerProps) {
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm">
+    <div className="fixed inset-x-3 bottom-4 z-50 flex max-w-sm flex-col gap-2 sm:left-auto sm:right-4">
       {toasts.map((toast) => (
         <ToastItem key={toast.id} toast={toast} onRemove={onRemove} />
       ))}
@@ -119,13 +119,15 @@ function ToastItem({ toast, onRemove }: ToastItemProps) {
       )}
       role="alert"
     >
-      <span className={iconStyles[toast.type]}>{icons[toast.type]}</span>
+      <span className={iconStyles[toast.type]} aria-hidden="true">{icons[toast.type]}</span>
       <p className="flex-1 text-sm font-medium">{toast.message}</p>
       <button
+        type="button"
         onClick={() => onRemove(toast.id)}
-        className="p-0.5 hover:bg-black/5 rounded transition-colors"
+        className="-m-2 min-h-11 min-w-11 rounded p-2 transition-colors hover:bg-black/5"
+        aria-label="Dismiss notification"
       >
-        <X className="w-4 h-4" />
+        <X className="w-4 h-4" aria-hidden="true" />
       </button>
     </div>
   );

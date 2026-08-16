@@ -1,10 +1,11 @@
-# PHP backend tests + coverage gate.
-# Added in Wave 2 of the ecosystem testing scrub. phpunit.xml already configured
-# coverage (Clover -> tests/coverage/clover.xml) but there was no backend CI to
-# run or enforce it (only frontend accessibility). This plugin has no composer.json
-# and runs the PHPUnit phar directly with a self-contained mock-WP bootstrap, so CI
-# installs phpunit via setup-php's `tools:` rather than `composer install`.
-# Follows DOCUMENTATION/testing-standard/ci-templates/php-plugin-tests.yml (adapted).
+# Peanut Booker — PHP test + security nets (Testing Protocol v2)
+#
+# Net 2 (security): composer audit, non-blocking (`|| true`) — ratchet to blocking later.
+# Net 6 (property): the pure-function property suite (tests/Property), no WP runtime.
+#
+# The legacy WP-mocked Unit suite (tests/phpunit/unit) is run non-blocking: it has
+# pre-existing drift from the code under newer PHP and is tracked separately. The
+# Property suite is the enforced gate here.
 name: tests
 
 on:
@@ -13,6 +14,86 @@ on:
   pull_request:
 
 jobs:
+  # Public host floor. The locked PHPUnit graph begins at PHP 8.1, so this job
+  # proves the exact PHP 8.0 parser and declarations without resolving dev tools.
+  php-runtime-minimum:
+    name: PHP 8.0 runtime declarations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.0"
+          coverage: none
+      - name: Verify PHP 8.0 runtime declarations
+        run: php scripts/verify-php-runtime.php --expect-runtime=8.0
+      - name: Parse every tracked PHP file on PHP 8.0
+        run: git ls-files -z '*.php' | xargs -0 -n1 php -l
+
+  php-development-minimum:
+    name: Property tests (PHP 8.1 development minimum)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.1"
+          coverage: none
+          tools: composer
+      - name: Install locked dependencies at the development floor
+        run: composer install --no-interaction --prefer-dist
+      - name: Verify PHP 8.1 development declarations
+        run: php scripts/verify-php-runtime.php --expect-development-runtime=8.1
+      - name: Property suite (pure functions, no WordPress)
+        run: vendor/bin/phpunit -c phpunit.property.xml
+      - name: Legacy unit suite (non-blocking — pre-existing drift, tracked)
+        continue-on-error: true
+        run: vendor/bin/phpunit --testsuite=Unit --no-coverage
+
+  security:
+    name: Dependency audit (net 2)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          tools: composer
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+      - name: Composer audit (non-blocking — ratchet to blocking later)
+        run: composer audit || true
+
+  property:
+    name: Property tests (PHP 8.3 current)
+    runs-on: ubuntu-latest
+    needs: security
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          coverage: none
+          tools: composer
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Property suite (pure functions, no WordPress)
+        run: vendor/bin/phpunit -c phpunit.property.xml
+
+      - name: Legacy unit suite (non-blocking — pre-existing drift, tracked)
+        continue-on-error: true
+        run: vendor/bin/phpunit --testsuite=Unit --no-coverage
+
+  # Backend coverage gate (Wave 2 of the testing scrub). phpunit.xml already
+  # emitted Clover coverage, but nothing ran or enforced it. This plugin has no
+  # composer.json and drives the PHPUnit phar directly against a self-contained
+  # mock-WP bootstrap, so PHPUnit arrives via setup-php `tools:` rather than
+  # `composer install`. Adapted from
+  # DOCUMENTATION/testing-standard/ci-templates/php-plugin-tests.yml.
   php-tests:
     runs-on: ubuntu-latest
     env:

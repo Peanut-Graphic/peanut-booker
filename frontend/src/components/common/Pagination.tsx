@@ -55,13 +55,17 @@ export default function Pagination({
   const visiblePages = getVisiblePages();
 
   return (
-    <div className={clsx('flex items-center justify-center gap-1', className)}>
+    <nav
+      aria-label="Pagination"
+      className={clsx('flex items-center justify-center gap-2', className)}
+    >
       <Button
         variant="outline"
         size="sm"
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
-        icon={<ChevronLeft className="w-4 h-4" />}
+        aria-label="Previous page"
+        icon={<ChevronLeft className="w-4 h-4" aria-hidden="true" />}
       />
 
       {visiblePages.map((page, index) =>
@@ -77,11 +81,13 @@ export default function Pagination({
             key={page}
             onClick={() => onPageChange(page)}
             className={clsx(
-              'px-3 py-1.5 text-sm font-medium rounded-lg transition-colors',
+              'min-h-11 min-w-11 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors',
               page === currentPage
                 ? 'bg-primary-600 text-white'
                 : 'text-slate-600 hover:bg-slate-100'
             )}
+            aria-label={`Page ${page}`}
+            aria-current={page === currentPage ? 'page' : undefined}
           >
             {page}
           </button>
@@ -93,8 +99,9 @@ export default function Pagination({
         size="sm"
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
-        icon={<ChevronRight className="w-4 h-4" />}
+        aria-label="Next page"
+        icon={<ChevronRight className="w-4 h-4" aria-hidden="true" />}
       />
-    </div>
+    </nav>
   );
 }
