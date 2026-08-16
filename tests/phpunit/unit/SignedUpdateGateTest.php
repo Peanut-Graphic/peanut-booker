@@ -68,4 +68,63 @@ final class SignedUpdateGateTest extends TestCase {
 			'Without formflow-core in require, vendor/ will not carry the verifier and the gate degrades to a notice.'
 		);
 	}
+
+	/**
+	 * The behaviour PAR-407 is actually about: an unsigned, tampered or
+	 * wrong-key package must be REFUSED.
+	 *
+	 * The tests above pin that the gate is wired. Registration is not refusal —
+	 * a correctly wired verifier that accepts a tampered package is worse than
+	 * no verifier, because it converts "unprotected" into "believed protected".
+	 */
+	public function test_unsigned_tampered_and_foreign_key_packages_are_refused(): void {
+		if ( ! function_exists( 'sodium_crypto_sign_keypair' ) ) {
+			$this->markTestSkipped( 'libsodium unavailable' );
+		}
+		if ( ! class_exists( '\\Peanut\\FormCore\\Update\\PackageVerifier' ) ) {
+			$this->markTestSkipped( 'formflow-core not installed in this environment' );
+		}
+
+		$verifier = '\\Peanut\\FormCore\\Update\\PackageVerifier';
+
+		$kp    = sodium_crypto_sign_keypair();
+		$pub   = base64_encode( sodium_crypto_sign_publickey( $kp ) );
+		$sk    = sodium_crypto_sign_secretkey( $kp );
+		$bytes = 'PK' . str_repeat( 'booker', 100 );
+
+		$signed = array(
+			'sha256'    => hash( 'sha256', $bytes ),
+			'signature' => base64_encode( sodium_crypto_sign_detached( $bytes, $sk ) ),
+		);
+
+		// Control: without this, every assertion below would pass just as well
+		// against a verifier that refuses everything.
+		$this->assertTrue( $verifier::verifyBytes( $bytes, $signed, $pub ), 'a correctly signed package must be accepted' );
+
+		$this->assertFalse( $verifier::verifyBytes( $bytes, array(), $pub ), 'an unsigned package must be refused' );
+		$this->assertFalse( $verifier::verifyBytes( $bytes . 'evil', $signed, $pub ), 'a tampered package must be refused' );
+
+		$other = sodium_crypto_sign_keypair();
+		$this->assertFalse(
+			$verifier::verifyBytes( $bytes, $signed, base64_encode( sodium_crypto_sign_publickey( $other ) ) ),
+			'a package signed with a foreign key must be refused'
+		);
+
+		$this->assertFalse(
+			$verifier::verifyBytes( $bytes, array( 'sha256' => hash( 'sha256', $bytes ) ), $pub ),
+			'a manifest with a hash but no signature must be refused'
+		);
+	}
+
+	public function test_only_peanut_hosts_over_tls_are_trusted(): void {
+		if ( ! class_exists( '\\Peanut\\FormCore\\Update\\PackageVerifier' ) ) {
+			$this->markTestSkipped( 'formflow-core not installed in this environment' );
+		}
+		$verifier = '\\Peanut\\FormCore\\Update\\PackageVerifier';
+		$hosts    = array( 'peanutgraphic.com', 'github.com' );
+
+		$this->assertTrue( $verifier::isTrustedPackageUrl( 'https://peanutgraphic.com/x.zip', $hosts ) );
+		$this->assertFalse( $verifier::isTrustedPackageUrl( 'https://evilpeanutgraphic.com/x.zip', $hosts ) );
+		$this->assertFalse( $verifier::isTrustedPackageUrl( 'http://peanutgraphic.com/x.zip', $hosts ), 'plaintext must not be trusted' );
+	}
 }
