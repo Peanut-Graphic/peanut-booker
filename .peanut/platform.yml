@@ -188,6 +188,6 @@ verification:
     - Align and pin Node and npm declarations under PAR-205.
     - Remediate the nine-production/fifteen-total npm advisory baseline under PAR-503 and PAR-505.
     - Cover the declared MySQL 5.7 and MariaDB 10.3 floors, or raise the declared minimums to what CI proves, under PAR-306.
-    - Decide the WooCommerce integration's future. It is loaded unconditionally on every site but WooCommerce is not in use, and includes/class-woocommerce.php calls WooCommerce-only functions with no class_exists guard.
+    - Decide the WooCommerce dependency's future, given the owner reports WooCommerce is not in use. Booker boots only when it is present, so on such a site the plugin registers nothing beyond an admin notice.
     - Inventory install-specific external services under PAR-310.
     - Add Booker to the signed publisher, fix update metadata, authenticate packages, curate release contents, and prove canary and rollback under PAR-402, PAR-405, and PAR-407.
