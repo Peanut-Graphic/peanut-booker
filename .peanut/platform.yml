@@ -46,7 +46,7 @@ databases:
     declarations:
       - { scope: documentation, source: README.md, value: "MySQL 5.7+ or MariaDB 10.3+" }
       - { scope: dependency, source: includes/class-activator.php and includes/class-database.php, value: "eleven dbDelta tables plus a versioned ALTER TABLE migration during normal plugin boot" }
-      - { scope: ci, source: .github/workflows/wp-contract.yml, value: "mysql:8 real WordPress REST contract lane" }
+      - { scope: ci, source: .github/workflows/wp-contract.yml, value: "mysql:8 compatibility and mariadb:10.6 production-family real WordPress contract lanes; the declared MySQL 5.7 and MariaDB 10.3 minimums remain unexercised" }
     production_equivalent_test: "yes"
     production_observation: { status: verified, value: "MariaDB 10.6.27, latin1_swedish_ci server collation, SQL mode ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION on the central first-party installation; distributed client hosts unverified", observed_at: "2026-08-15T01:09:00-04:00", evidence: "read-only database metadata query; no application rows read" }
 services:
@@ -90,11 +90,11 @@ exceptions:
     review_date: "2026-11-14"
     status: accepted
   - id: PAR-306
-    concern: Distributed host databases include MariaDB and older MySQL but required CI exercises only MySQL 8
-    reason: The plugin declares MySQL 5.7+ and MariaDB 10.3+, creates eleven dbDelta tables, and runs hand-written SHOW and ALTER TABLE migration queries during ordinary plugin boot. The central first-party installation runs MariaDB 10.6.27 with latin1_swedish_ci and a non-strict SQL mode, while the only real WordPress lane uses mysql:8 and does not exercise WooCommerce; distributed client hosts remain unverified.
-    risk: MariaDB-, older-MySQL-, and WooCommerce-specific schema or migration behavior can fail on Booker sites without appearing in the required gate.
+    concern: The declared MySQL 5.7 and MariaDB 10.3 minimums are still unexercised, and client hosts remain unverified
+    reason: Real WordPress contracts now run on MySQL 8 and the central installation's MariaDB 10.6 family, covering the eleven dbDelta tables and the hand-written SHOW and ALTER TABLE migration queries this plugin runs during ordinary plugin boot. Two gaps are unchanged by that. The plugin declares MySQL 5.7+ and MariaDB 10.3+, so both declared floors sit below every lane that runs, and distributed client-host versions, collations, SQL modes, and upgrade histories remain unknown.
+    risk: Schema or migration behavior specific to an older declared engine, or to a client-specific collation or SQL mode, can still fail on Booker sites without appearing in the required gate.
     owner: Peanut Graphic
-    verification: Run activation, sequential upgrade, and real-WordPress/WooCommerce contracts against every supported MySQL and MariaDB lane.
+    verification: Keep both lanes green; then either cover the declared MySQL 5.7 and MariaDB 10.3 floors or raise the declared minimums to what CI proves.
     review_date: "2026-11-14"
     status: accepted
   - id: PAR-310
@@ -187,6 +187,7 @@ verification:
     - Reconcile why Booker is active centrally without its declared hard WooCommerce dependency and why weekly ML training is not registered.
     - Align and pin Node and npm declarations under PAR-205.
     - Remediate the nine-production/fifteen-total npm advisory baseline under PAR-503 and PAR-505.
-    - Add supported MariaDB, older-MySQL, and WooCommerce activation/migration/real-WordPress lanes under PAR-306.
+    - Cover the declared MySQL 5.7 and MariaDB 10.3 floors, or raise the declared minimums to what CI proves, under PAR-306.
+    - Decide the WooCommerce integration's future. It is loaded unconditionally on every site but WooCommerce is not in use, and includes/class-woocommerce.php calls WooCommerce-only functions with no class_exists guard.
     - Inventory install-specific external services under PAR-310.
     - Add Booker to the signed publisher, fix update metadata, authenticate packages, curate release contents, and prove canary and rollback under PAR-402, PAR-405, and PAR-407.
