@@ -1,6 +1,6 @@
 # Peanut Booker — PHP test + security nets (Testing Protocol v2)
 #
-# Net 2 (security): composer audit, non-blocking (`|| true`) — ratchet to blocking later.
+# Net 2 (security): composer audit, BLOCKING as of 2026-08-20.
 # Net 6 (property): the pure-function property suite (tests/Property), no WP runtime.
 #
 # The legacy WP-mocked Unit suite (tests/phpunit/unit) is run non-blocking: it has
@@ -62,7 +62,7 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist
       - name: Composer audit (non-blocking — ratchet to blocking later)
-        run: composer audit || true
+        run: composer audit
 
   property:
     name: Property tests (PHP 8.3 current)
