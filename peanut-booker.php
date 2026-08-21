@@ -5,7 +5,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * Plugin Name: Peanut Booker
  * Plugin URI: https://peanutgraphic.com/peanut-booker
  * Description: A membership and booking platform connecting performers with event organizers. Features performer profiles, booking engine, bidding market, reviews, and escrow payments.
- * Version: 1.7.2
+ * Version: 1.7.3
  * Author: Peanut Graphic
  * Author URI: https://peanutgraphic.com
  * License: GPL-2.0+
@@ -28,7 +28,7 @@ if ( ! defined( 'WPINC' ) ) {
 /**
  * Plugin version.
  */
-define( 'PEANUT_BOOKER_VERSION', '1.7.2' );
+define( 'PEANUT_BOOKER_VERSION', '1.7.3' );
 
 /**
  * Plugin base path.
