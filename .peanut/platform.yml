@@ -146,17 +146,17 @@ exceptions:
     review_date: "2026-08-21"
     status: retired
   - id: PAR-505
-    concern: Frontend dependency security baseline is red
-    reason: Current npm advisory data reports nine production findings (four high and five moderate) across direct axios, DOMPurify, and React Router DOM plus transitive packages; the full development graph reports fifteen findings, and all report fixes available.
-    risk: Known request, sanitization, routing, and transitive dependency flaws remain in the shipped frontend graph until a regression-tested upgrade is merged.
+    concern: Frontend dependency security baseline required continuous enforcement
+    reason: The repaired lock and current Dependabot feed report zero vulnerabilities. The accessibility workflow now performs a clean locked install and fails on moderate-or-higher production advisories on pull requests and exact main before executing its frontend gates.
+    risk: Retired; a new moderate production advisory now fails the owning frontend workflow instead of relying on periodic reporting.
     owner: Peanut Graphic
-    verification: Upgrade the affected dependency graph in a dedicated pull request, require zero production advisories, and rerun all 504 frontend tests, accessibility lint, typecheck, build, and real WordPress contract.
-    review_date: "2026-08-21"
-    status: accepted
+    verification: Keep the blocking moderate production audit and Dependabot feed green; handle any new advisory through an exact, time-bounded ADV exception rather than weakening the fleet floor.
+    review_date: "2026-08-22"
+    status: retired
 verification:
   status: live-verified
-  audited_commit: 626969e8fdc89b51d7101fbf214ef47329baadd8
-  last_reviewed: "2026-08-15"
+  audited_commit: aa96a48f2eb21283e75e9167a46d21c25a87a65f
+  last_reviewed: "2026-08-22"
   sources:
     - peanut-booker.php
     - composer.json
@@ -186,7 +186,7 @@ verification:
     - Inventory supported distributed client-host PHP, WordPress, database, WooCommerce/payment, Google OAuth, scheduler, and ML contracts without collecting customer data.
     - Reconcile why Booker is active centrally without its declared hard WooCommerce dependency and why weekly ML training is not registered.
     - Align and pin Node and npm declarations under PAR-205.
-    - Remediate the nine-production/fifteen-total npm advisory baseline under PAR-503 and PAR-505.
+    - Keep the blocking moderate frontend dependency audit and current zero-vulnerability baseline green under PAR-508/PAR-505.
     - Cover the declared MySQL 5.7 and MariaDB 10.3 floors, or raise the declared minimums to what CI proves, under PAR-306.
     - Decide the WooCommerce dependency's future, given the owner reports WooCommerce is not in use. Booker boots only when it is present, so on such a site the plugin registers nothing beyond an admin notice.
     - Inventory install-specific external services under PAR-310.
