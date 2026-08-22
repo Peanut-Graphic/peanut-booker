@@ -2,6 +2,19 @@
 
 All notable changes to Peanut Booker will be documented in this file.
 
+## [1.7.3] - 2026-08-21
+
+### Security
+- Added signature verification for update packages and upgraded the frontend
+  dependency tree to clear known advisories, including the patched
+  `react-router-dom` release.
+
+### Changed
+- Recompiled the tracked frontend assets from the patched dependency graph.
+- Added repository-owned runtime, platform-manifest, release-readiness,
+  dependency-audit, MariaDB, and real-WordPress contract gates.
+- Improved mobile booking-editor surfaces and frontend accessibility coverage.
+
 ## [1.7.2] - 2026-01-01
 
 ### Fixed
