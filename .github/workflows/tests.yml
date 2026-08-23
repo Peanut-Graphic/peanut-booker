@@ -61,7 +61,7 @@ jobs:
           tools: composer
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist
-      - name: Composer audit (non-blocking — ratchet to blocking later)
+      - name: Composer audit (blocking)
         run: composer audit
 
   property:
