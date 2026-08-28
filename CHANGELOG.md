@@ -2,6 +2,39 @@
 
 All notable changes to Peanut Booker will be documented in this file.
 
+## [1.7.3] - 2026-08-21
+
+### Security
+- Added signature verification for update packages and upgraded the frontend
+  dependency tree to clear known advisories, including the patched
+  `react-router-dom` release.
+
+### Changed
+- Recompiled the tracked frontend assets from the patched dependency graph.
+- Added repository-owned runtime, platform-manifest, release-readiness,
+  dependency-audit, MariaDB, and real-WordPress contract gates.
+- Improved mobile booking-editor surfaces and frontend accessibility coverage.
+
+## [1.7.2] - 2026-01-01
+
+### Fixed
+- Tooltips now render through a React portal to `document.body` with fixed
+  positioning, so they appear above surrounding content regardless of a parent's
+  `overflow`.
+
+### Note on this entry
+- Reconstructed after the fact from git history, and the history between 1.5.4
+  and 1.7.2 is thin: two commits, one of them the version bump. There is no
+  record of what distinguished 1.6.x, and no 1.6.x tag exists. Rather than
+  invent entries to fill the gap, this says what can actually be evidenced.
+
+## [1.5.4] - 2025-12-27
+
+### Note on this entry
+- Recorded as a release for completeness. Its single commit is an
+  import-shaped "Peanut Booker v1.5.4 - Complete source", so the individual
+  changes it carried are not recoverable from this repository's history.
+
 ## [1.5.0] - 2024-12-19
 
 ### Added

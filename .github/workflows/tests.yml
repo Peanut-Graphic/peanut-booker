@@ -1,6 +1,6 @@
 # Peanut Booker — PHP test + security nets (Testing Protocol v2)
 #
-# Net 2 (security): composer audit, non-blocking (`|| true`) — ratchet to blocking later.
+# Net 2 (security): composer audit, BLOCKING as of 2026-08-20.
 # Net 6 (property): the pure-function property suite (tests/Property), no WP runtime.
 #
 # The legacy WP-mocked Unit suite (tests/phpunit/unit) is run non-blocking: it has
@@ -20,8 +20,8 @@ jobs:
     name: PHP 8.0 runtime declarations
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: shivammathur/setup-php@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: "8.0"
           coverage: none
@@ -34,8 +34,8 @@ jobs:
     name: Property tests (PHP 8.1 development minimum)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: shivammathur/setup-php@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: "8.1"
           coverage: none
@@ -54,25 +54,25 @@ jobs:
     name: Dependency audit (net 2)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: shivammathur/setup-php@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: "8.3"
           tools: composer
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist
-      - name: Composer audit (non-blocking — ratchet to blocking later)
-        run: composer audit || true
+      - name: Composer audit (blocking)
+        run: composer audit
 
   property:
     name: Property tests (PHP 8.3 current)
     runs-on: ubuntu-latest
     needs: security
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
         with:
           php-version: "8.3"
           coverage: none
@@ -120,3 +120,21 @@ jobs:
         with:
           name: php-coverage
           path: tests/coverage/
+
+  release-readiness:
+    name: Release readiness
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # nothing published. It proves the artifact the publisher WOULD build is
+      # coherent -- version constants that agree with the header, every INCLUDE
+      # path present, vendor/ shipped where the build needs it, a changelog
+      # entry for this version, and a stable-tag line the publisher's bump can
+      # actually match.
+      #
+      # The checker is synced here from peanut-meta by configs-sync, so this job
+      # needs no credential to reach that private repo. Drift is reported by
+      # configs-sync and surfaced in the weekly audit. PAR-406.
+      - name: Could this be released at all?
+        run: bash .peanut/release/verify-release-readiness.sh peanut-booker
