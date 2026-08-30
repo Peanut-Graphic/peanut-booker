@@ -37,11 +37,11 @@ if ( ! defined( 'HOUR_IN_SECONDS' ) ) {
 }
 
 if ( ! defined( 'AUTH_KEY' ) ) {
-    define( 'AUTH_KEY', 'test-auth-key-for-unit-testing' );
+    define( 'AUTH_KEY', 'test-auth-key-for-unit-testing-with-adequate-length' );
 }
 
 if ( ! defined( 'SECURE_AUTH_KEY' ) ) {
-    define( 'SECURE_AUTH_KEY', 'test-secure-auth-key-for-unit-testing' );
+    define( 'SECURE_AUTH_KEY', 'test-secure-auth-key-for-unit-testing-with-adequate-length' );
 }
 
 // Output constants for testing.
@@ -542,6 +542,17 @@ if ( ! function_exists( 'current_user_can' ) ) {
             return false;
         }
         $user = $mock_users[ $mock_current_user_id ];
+        return isset( $user->allcaps[ $capability ] ) && $user->allcaps[ $capability ];
+    }
+}
+
+if ( ! function_exists( 'user_can' ) ) {
+    function user_can( $user_id, $capability, ...$args ) {
+        global $mock_users;
+        if ( ! isset( $mock_users[ $user_id ] ) ) {
+            return false;
+        }
+        $user = $mock_users[ $user_id ];
         return isset( $user->allcaps[ $capability ] ) && $user->allcaps[ $capability ];
     }
 }

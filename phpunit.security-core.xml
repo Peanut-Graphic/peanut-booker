@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.6/phpunit.xsd"
+    bootstrap="tests/phpunit/bootstrap.php"
+    colors="true"
+    beStrictAboutTestsThatDoNotTestAnything="true"
+    failOnRisky="true"
+    failOnWarning="true"
+    cacheResultFile=".phpunit.cache/security-core.result"
+>
+    <testsuites>
+        <testsuite name="Security Core">
+            <directory suffix="Test.php">tests/SecurityCore</directory>
+        </testsuite>
+    </testsuites>
+
+    <coverage processUncoveredFiles="true">
+        <include>
+            <file>includes/class-encryption.php</file>
+            <file>includes/class-rate-limiter.php</file>
+            <file>includes/class-roles.php</file>
+        </include>
+        <report>
+            <text outputFile="tests/coverage/security-core.txt"/>
+            <clover outputFile="tests/coverage/security-core-clover.xml"/>
+        </report>
+    </coverage>
+</phpunit>

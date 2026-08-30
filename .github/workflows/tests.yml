@@ -2,10 +2,12 @@
 #
 # Net 2 (security): composer audit, BLOCKING as of 2026-08-20.
 # Net 6 (property): the pure-function property suite (tests/Property), no WP runtime.
+# Security core: current-contract tests over encryption, rate limiting, and roles;
+# blocking at 30% scoped production coverage.
 #
 # The legacy WP-mocked Unit suite (tests/phpunit/unit) is run non-blocking: it has
 # pre-existing drift from the code under newer PHP and is tracked separately. The
-# Property suite is the enforced gate here.
+# property and security-core suites are the enforced test gates here.
 name: tests
 
 on:
@@ -49,6 +51,31 @@ jobs:
       - name: Legacy unit suite (non-blocking — pre-existing drift, tracked)
         continue-on-error: true
         run: vendor/bin/phpunit --testsuite=Unit --no-coverage
+
+  security-core:
+    name: Security core contract and coverage
+    runs-on: ubuntu-latest
+    env:
+      MIN_COVERAGE: "30"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: "8.3"
+          coverage: pcov
+          tools: composer
+      - name: Install locked dependencies
+        run: composer install --no-interaction --prefer-dist
+      - name: Security core tests with scoped production coverage
+        run: vendor/bin/phpunit -c phpunit.security-core.xml
+      - name: Enforce the reviewed security-core floor
+        run: php coverage-gate.php tests/coverage/security-core-clover.xml "$MIN_COVERAGE"
+      - name: Upload security-core coverage evidence
+        if: always()
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        with:
+          name: security-core-coverage
+          path: tests/coverage/security-core-*
 
   security:
     name: Dependency audit (net 2)
