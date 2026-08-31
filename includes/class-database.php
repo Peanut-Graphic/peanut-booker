@@ -63,6 +63,17 @@ class Peanut_Booker_Database {
     public static function update( $table, $data, $where, $format = null, $where_format = null ) {
         global $wpdb;
 
+        // Refuse an unbounded write. Today this is caught only by accident:
+        // wpdb builds "UPDATE `t` SET ... WHERE " from an empty $where and
+        // MySQL rejects the malformed SQL. That is defence by syntax error, on
+        // the one code path where being wrong rewrites every row in the table.
+        // All 40 callers pass an explicit condition, so nothing legitimate is
+        // refused here.
+        if ( empty( $where ) ) {
+            error_log( 'Peanut Booker: refused an UPDATE with no WHERE condition on ' . $table . '.' );
+            return false;
+        }
+
         return $wpdb->update(
             self::get_table( $table ),
             $data,
@@ -82,6 +93,13 @@ class Peanut_Booker_Database {
      */
     public static function delete( $table, $where, $where_format = null ) {
         global $wpdb;
+
+        // Same guard as update(), and it matters more here: an empty $where on
+        // a DELETE is "remove every row in the table".
+        if ( empty( $where ) ) {
+            error_log( 'Peanut Booker: refused a DELETE with no WHERE condition on ' . $table . '.' );
+            return false;
+        }
 
         return $wpdb->delete(
             self::get_table( $table ),
