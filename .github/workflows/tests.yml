@@ -88,8 +88,12 @@ jobs:
           tools: composer
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist
+      - name: Validate Composer audit transport contract
+        run: |
+          bash scripts/tests/composer-audit-transport.test.sh
+          bash scripts/tests/composer-npm-audit-workflow.test.sh
       - name: Composer audit (blocking)
-        run: composer audit
+        run: bash scripts/run-dependency-audit-transport.sh composer
 
   property:
     name: Property tests (PHP 8.3 current)
