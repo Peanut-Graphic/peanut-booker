@@ -1,5 +1,7 @@
 # Peanut Booker
 
+> **Dependency updates:** `renovate.json` extends `local>peanutgraphic/renovate-config`, but Renovate is not installed on the Peanut-Graphic GitHub org, so it has never opened a PR here. `.github/dependabot.yml` provides automated dependency PRs instead — see that file to add/adjust ecosystems.
+
 A membership and booking platform for WordPress connecting performers with event organizers. Features performer profiles, booking engine, bidding market, reviews, and escrow payments via WooCommerce.
 
 ## Features
