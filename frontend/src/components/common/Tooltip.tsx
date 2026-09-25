@@ -39,7 +39,7 @@ export default function Tooltip({
   const [coords, setCoords] = useState({ top: 0, left: 0 });
   const [actualPosition, setActualPosition] = useState(position);
   const tooltipId = useId();
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const triggerRef = useRef<HTMLSpanElement>(null);
 
   const showTooltip = useCallback(() => {
