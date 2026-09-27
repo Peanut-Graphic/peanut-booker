@@ -185,7 +185,7 @@ Performers can sync their availability with Google Calendar:
 ### Prerequisites
 - PHP 8.1+ for Composer dependencies and test tooling
 - Composer
-- Node.js 18+
+- Node.js 22.23.2 with npm 10.9.8
 - WooCommerce (for full functionality)
 
 ### Setup
