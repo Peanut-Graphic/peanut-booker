@@ -80,7 +80,7 @@ The accessibility pipeline runs on every pull request to `main` branch.
 **Location**: `.github/workflows/accessibility.yml`
 
 **Steps**:
-1. Node.js environment setup (v20)
+1. Node.js environment setup (v22.23.2 with npm 10.9.8)
 2. Install dependencies via npm ci
 3. Run ESLint with jsx-a11y rules
 4. Execute vitest a11y test suite

@@ -29,9 +29,9 @@ runtimes:
   - name: node
     baseline: "22"
     declarations:
-      - { scope: dependency, source: README.md, value: "Node.js 18+" }
-      - { scope: dependency, source: frontend/package.json, value: "engines and packageManager missing; version 1.7.2" }
-      - { scope: ci, source: .github/workflows/accessibility.yml, value: "Node 20" }
+      - { scope: dependency, source: README.md, value: "Node.js 22.23.2 with npm 10.9.8" }
+      - { scope: dependency, source: frontend/package.json, value: "exact Node 22.23.2 and npm 10.9.8; version 1.7.2" }
+      - { scope: ci, source: .github/workflows/accessibility.yml, value: "exact Node 22.23.2 and npm 10.9.8 with a fail-closed source/runtime contract" }
     production_observation: { status: not-applicable }
   - name: wordpress
     baseline: WordPress 6.0+ with WooCommerce 8.0+
@@ -83,10 +83,10 @@ distribution:
 exceptions:
   - id: PAR-207
     concern: JavaScript runtime declarations remain below the fleet baseline
-    reason: PAR-207 reconciles the PHP 8.0 host floor, PHP 8.1 locked development floor, exact-minimum required CI, current/real-WordPress PHP 8.3, and observed central PHP 8.5.9; README permits Node 18+, frontend CI uses Node 20, GitHub actions execute on Node 24, the fleet baseline is Node 22, and frontend/package.json declares neither engines.node nor packageManager.
-    risk: Local frontend builds, CI, and release assets can exercise materially different Node/npm versions.
+    reason: PAR-207 reconciles the PHP 8.0 host floor, PHP 8.1 locked development floor, exact-minimum required CI, current/real-WordPress PHP 8.3, and observed central PHP 8.5.9. PAR-205 now pins source, lock metadata, documentation, and frontend CI to exact Node 22.23.2/npm 10.9.8. GitHub JavaScript actions execute on their separately reviewed Node 24 runtimes.
+    risk: Distributed operators can still build release assets outside the repository-owned frontend gate.
     owner: Peanut Graphic
-    verification: Pin fleet Node and npm versions and execute the frontend gates on the declared versions.
+    verification: Keep the fail-closed declaration/runtime contract and exact frontend gate green; prove future release assets were built by the declared lane.
     review_date: "2026-11-14"
     status: accepted
   - id: PAR-306

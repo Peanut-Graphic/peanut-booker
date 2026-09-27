@@ -2,6 +2,12 @@
 
 All notable changes to Peanut Booker will be documented in this file.
 
+## Unreleased
+
+### Changed
+- Pinned frontend development and CI to Node 22.23.2 and npm 10.9.8 with a
+  fail-closed source/runtime contract.
+
 ## [1.7.3] - 2026-08-21
 
 ### Security
