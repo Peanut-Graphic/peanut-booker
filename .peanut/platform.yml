@@ -88,7 +88,7 @@ exceptions:
     owner: Peanut Graphic
     verification: Keep the fail-closed declaration/runtime contract and exact frontend gate green; prove future release assets were built by the declared lane.
     review_date: "2026-11-14"
-    status: mitigated
+    status: accepted
   - id: PAR-306
     concern: The declared MySQL 5.7 and MariaDB 10.3 minimums are still unexercised, and client hosts remain unverified
     reason: Real WordPress contracts now run on MySQL 8 and the central installation's MariaDB 10.6 family, covering the eleven dbDelta tables and the hand-written SHOW and ALTER TABLE migration queries this plugin runs during ordinary plugin boot. Two gaps are unchanged by that. The plugin declares MySQL 5.7+ and MariaDB 10.3+, so both declared floors sit below every lane that runs, and distributed client-host versions, collations, SQL modes, and upgrade histories remain unknown.
