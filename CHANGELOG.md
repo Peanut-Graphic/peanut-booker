@@ -4,6 +4,19 @@ All notable changes to Peanut Booker will be documented in this file.
 
 ## Unreleased
 
+### Security
+- Sensitive fields (event address, event ZIP, customer phone) are now encrypted
+  with authenticated encryption (XChaCha20-Poly1305, `$PB_ENC$v2:` format)
+  instead of unauthenticated AES-256-CBC, so tampered or wrong-key ciphertext
+  fails closed. Existing CBC values still decrypt and are upgraded to V2 when
+  they are next written; `needs_reencrypt()` reports values that are still
+  legacy.
+- On sites with a missing, default, or short `AUTH_KEY`, Booker no longer
+  encrypts new data with the guessable `md5(site_url . prefix . ABSPATH)`
+  fallback key. New values are stored unencrypted and administrators see an
+  error notice. Legacy values written under that key remain readable.
+- Corrected `docs/SECURITY.md`, which described the cipher as AES-256-GCM.
+
 ### Changed
 - Pinned frontend development and CI to Node 22.23.2 and npm 10.9.8 with a
   fail-closed source/runtime contract.
