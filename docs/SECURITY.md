@@ -76,23 +76,56 @@ if (!current_user_can('pb_book_performers')) {
 
 ### Encryption
 
-Sensitive payment data uses AES-256-GCM encryption:
+`Peanut_Booker_Encryption` (`includes/class-encryption.php`) encrypts a small,
+explicit set of fields at rest: booking `event_address` and `event_zip`, and the
+customer `pb_phone` user meta. Payment card data is never stored by Booker.
 
-```php
-class Peanut_Booker_Encryption {
-    // Encryption key derived from WordPress salts
-    // Never stored in database
+**Current format (V2, written since the authenticated-encryption fix):**
 
-    public static function encrypt(string $data): string;
-    public static function decrypt(string $encrypted): string;
-}
-```
+- XChaCha20-Poly1305 AEAD via ext-sodium, or the `sodium_compat` polyfill
+  WordPress bundles.
+- A random 192-bit nonce per value; fixed associated data `peanut-booker/v2`.
+- Stored as `$PB_ENC$v2:` + base64(nonce || ciphertext || tag).
+- Any modification, truncation, or wrong key makes decryption fail. A failed
+  decrypt returns the stored value unchanged (never partial plaintext), logs a
+  warning, and fires `peanut_booker_encryption_failed`.
+
+**Legacy format (read only):** values written by 1.7.3 and earlier are
+AES-256-CBC with a random IV, stored as `$PB_ENC$` + base64(iv || ciphertext).
+CBC has no MAC, so these values are malleable. They still decrypt, and
+`encrypt()` upgrades a legacy value to V2 when it is passed back in.
+`needs_reencrypt()` reports values that are still legacy so a caller can migrate
+them (decrypt, encrypt, save). Existing rows are not rewritten in bulk; they
+migrate when they are next written.
 
 ### Key Management
 
-- Encryption key derived from `SECURE_AUTH_KEY` WordPress constant
-- Keys never stored in database
-- If WordPress salts change, data re-encryption required
+- Keys are derived from the `AUTH_KEY` and `SECURE_AUTH_KEY` constants in
+  `wp-config.php` and are never stored in the database.
+- V2 key: HKDF-SHA256 over the full, length-prefixed `AUTH_KEY` +
+  `SECURE_AUTH_KEY` material (info `peanut-booker/v2/data-at-rest`).
+- Legacy key (for reading old values): PBKDF2-SHA256 over
+  `AUTH_KEY . SECURE_AUTH_KEY`, salt `peanut-booker-encryption`, 10,000
+  iterations.
+- If either constant changes, values encrypted under the old keys can no longer
+  be decrypted. Rotating WordPress salts on a site with Booker data means losing
+  those fields unless they are re-encrypted first.
+
+**Fallback key (misconfigured sites).** When `AUTH_KEY` is missing, the WordPress
+default (`put your unique phrase here`), or shorter than 32 bytes, the only key
+available is derived from `md5(site_url . table_prefix . ABSPATH)`. Anyone with
+the database can reconstruct it, so it gives no real protection. Booker:
+
+- still uses it to **decrypt** legacy values that were written under it;
+- **does not encrypt new values** with it. They are stored unencrypted, and
+  Booker logs an error, fires `peanut_booker_encryption_failed`
+  (`encrypt`, `fallback_key`), and shows administrators an error notice until
+  real keys are configured.
+
+Once real keys are set, new writes are encrypted with V2. Values written under
+the fallback key will not decrypt under the new keys. Those are the same values
+the fallback key never really protected, but they become unreadable, so export
+them before you configure keys on a site that has been running without them.
 
 ### WooCommerce Integration
 
