@@ -8,6 +8,7 @@ export { default as Modal, ConfirmModal } from './Modal';
 export { default as Badge, StatusBadge, TierBadge, LevelBadge } from './Badge';
 export { default as EmptyState, Skeleton, emptyStates } from './EmptyState';
 export { default as Table, SortableHeader, createCheckboxColumn } from './Table';
+export type { TableColumnDef } from './Table';
 export { default as Pagination } from './Pagination';
 export { default as ToastProvider, useToast } from './Toast';
 export { default as Alert, HelpCard, Tip } from './Alert';

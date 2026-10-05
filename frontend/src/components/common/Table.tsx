@@ -1,15 +1,28 @@
 import { type ReactNode, useState, useRef, useCallback, useId } from 'react';
 import { clsx } from 'clsx';
 import {
-  useReactTable,
-  getCoreRowModel,
+  useTable,
+  tableFeatures,
+  rowSelectionFeature,
+  columnVisibilityFeature,
   flexRender,
   type ColumnDef,
+  type RowData,
   type RowSelectionState,
   type OnChangeFn,
 } from '@tanstack/react-table';
 import { ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import EmptyState from './EmptyState';
+
+// TanStack Table v9 registers features explicitly. The shared Table needs row
+// selection and column visibility (row.getVisibleCells); sorting and pagination
+// are handled by the pages (server-side via SortableHeader and Pagination), and
+// the core row model is automatic.
+export const tableFeatureSet = tableFeatures({ rowSelectionFeature, columnVisibilityFeature });
+export type TableFeatureSet = typeof tableFeatureSet;
+
+/** Column definition type for the shared Table component. */
+export type TableColumnDef<T extends RowData> = ColumnDef<TableFeatureSet, T>;
 
 interface EmptyStateConfig {
   icon?: ReactNode;
@@ -18,9 +31,9 @@ interface EmptyStateConfig {
   tips?: string[];
 }
 
-interface TableProps<T> {
+interface TableProps<T extends RowData> {
   data: T[];
-  columns: ColumnDef<T, unknown>[];
+  columns: TableColumnDef<T>[];
   loading?: boolean;
   rowSelection?: RowSelectionState;
   onRowSelectionChange?: OnChangeFn<RowSelectionState>;
@@ -39,7 +52,7 @@ interface TableProps<T> {
 // Number of rows to skip with Page Up/Down
 const PAGE_SIZE = 5;
 
-export default function Table<T>({
+export default function Table<T extends RowData>({
   data,
   columns,
   loading = false,
@@ -58,10 +71,10 @@ export default function Table<T>({
   const rowRefs = useRef<(HTMLTableRowElement | null)[]>([]);
   const [focusedRowIndex, setFocusedRowIndex] = useState<number>(-1);
 
-  const table = useReactTable({
+  const table = useTable({
+    features: tableFeatureSet,
     data,
     columns,
-    getCoreRowModel: getCoreRowModel(),
     state: {
       rowSelection: rowSelection || {},
     },
@@ -363,7 +376,7 @@ export function SortableHeader({
 }
 
 // Helper to create checkbox column
-export function createCheckboxColumn<T>(): ColumnDef<T, unknown> {
+export function createCheckboxColumn<T extends RowData>(): TableColumnDef<T> {
   return {
     id: 'select',
     header: ({ table }) => {
@@ -413,6 +426,5 @@ export function createCheckboxColumn<T>(): ColumnDef<T, unknown> {
         aria-label={row.getIsSelected() ? 'Deselect row' : 'Select row'}
       />
     ),
-    size: 40,
   };
 }

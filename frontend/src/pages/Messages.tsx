@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { type ColumnDef } from '@tanstack/react-table';
 import { Layout } from '@/components/layout';
 import {
   Card,
@@ -13,6 +12,7 @@ import {
   emptyStates,
   HelpCard,
   Modal,
+  type TableColumnDef,
 } from '@/components/common';
 import { messagesApi, type Conversation, type Message } from '@/api/endpoints';
 import { MessageSquare, User, Eye, Mail } from 'lucide-react';
@@ -48,7 +48,7 @@ export default function Messages() {
     setViewModalOpen(true);
   };
 
-  const columns: ColumnDef<Conversation>[] = [
+  const columns: TableColumnDef<Conversation>[] = [
     {
       accessorKey: 'participants',
       header: 'Participants',

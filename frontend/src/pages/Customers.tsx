@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { type ColumnDef } from '@tanstack/react-table';
 import { Layout } from '@/components/layout';
 import {
   Card,
@@ -11,6 +10,7 @@ import {
   EmptyState,
   emptyStates,
   HelpCard,
+  type TableColumnDef,
 } from '@/components/common';
 import { customersApi, type Customer } from '@/api/endpoints';
 import { Users, Mail, Phone, Calendar, DollarSign, ShoppingBag } from 'lucide-react';
@@ -30,7 +30,7 @@ export default function Customers() {
       }),
   });
 
-  const columns: ColumnDef<Customer>[] = [
+  const columns: TableColumnDef<Customer>[] = [
     {
       accessorKey: 'display_name',
       header: 'Customer',

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { type ColumnDef } from '@tanstack/react-table';
 import { Layout } from '@/components/layout';
 import {
   Card,
@@ -19,6 +18,7 @@ import {
   emptyStates,
   HelpTooltip,
   Badge,
+  type TableColumnDef,
 } from '@/components/common';
 import { performers as helpContent } from '@/constants/helpContent';
 import { performersApi } from '@/api';
@@ -111,7 +111,7 @@ export default function Performers() {
     }
   };
 
-  const columns: ColumnDef<Performer>[] = [
+  const columns: TableColumnDef<Performer>[] = [
     {
       accessorKey: 'stage_name',
       header: () => (
