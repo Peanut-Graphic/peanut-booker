@@ -2,7 +2,18 @@
 
 All notable changes to Peanut Booker will be documented in this file.
 
-## Unreleased
+## [1.8.0] - 2026-10-05
+
+### Upgrade notes
+- **One-way storage change.** 1.8.0 re-encrypts sensitive fields (event
+  address, event ZIP, customer phone) in the new `$PB_ENC$v2:` format the next
+  time each value is written. Older versions (1.7.3 and earlier) cannot read
+  v2 values, so after upgrading do not roll back to 1.7.x; fix forward instead.
+  Values that have not been rewritten still decrypt in both versions.
+- Sites with a missing, default or short `AUTH_KEY` now store new sensitive
+  values unencrypted and show administrators an error notice. Set a strong
+  `AUTH_KEY` in `wp-config.php` to keep encrypting new values.
+
 
 ### Security
 - Sensitive fields (event address, event ZIP, customer phone) are now encrypted
@@ -20,6 +31,10 @@ All notable changes to Peanut Booker will be documented in this file.
 ### Changed
 - Pinned frontend development and CI to Node 22.23.2 and npm 10.9.8 with a
   fail-closed source/runtime contract.
+- Admin tables moved to @tanstack/react-table 9 (row selection, select-all and
+  keyboard selection unchanged; covered by new tests).
+- Frontend and Composer dependency updates (jsdom 30, jest-axe 11, minor and
+  patch groups); patched urllib3 in the locked CI auditor.
 
 ## [1.7.3] - 2026-08-21
 
