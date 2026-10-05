@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { type ColumnDef } from '@tanstack/react-table';
 import { Layout } from '@/components/layout';
 import {
   Card,
@@ -12,6 +11,7 @@ import {
   EmptyState,
   emptyStates,
   HelpTooltip,
+  type TableColumnDef,
 } from '@/components/common';
 import { marketEvents as helpContent } from '@/constants/helpContent';
 import { marketApi } from '@/api';
@@ -48,7 +48,7 @@ export default function MarketEvents() {
       }),
   });
 
-  const columns: ColumnDef<MarketEvent>[] = [
+  const columns: TableColumnDef<MarketEvent>[] = [
     {
       accessorKey: 'id',
       header: 'ID',

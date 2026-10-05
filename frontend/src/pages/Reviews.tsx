@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { type ColumnDef } from '@tanstack/react-table';
 import { Layout } from '@/components/layout';
 import {
   Card,
@@ -15,6 +14,7 @@ import {
   useToast,
   emptyStates,
   HelpTooltip,
+  type TableColumnDef,
 } from '@/components/common';
 import { reviews as helpContent } from '@/constants/helpContent';
 import { reviewsApi } from '@/api';
@@ -95,7 +95,7 @@ export default function Reviews() {
     </div>
   );
 
-  const columns: ColumnDef<Review>[] = [
+  const columns: TableColumnDef<Review>[] = [
     {
       accessorKey: 'reviewer_name',
       header: () => (

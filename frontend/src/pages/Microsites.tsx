@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { type ColumnDef } from '@tanstack/react-table';
 import { Layout } from '@/components/layout';
 import {
   Card,
@@ -16,6 +15,7 @@ import {
   useToast,
   emptyStates,
   HelpTooltip,
+  type TableColumnDef,
 } from '@/components/common';
 import { microsites as helpContent } from '@/constants/helpContent';
 import { micrositesApi } from '@/api';
@@ -81,7 +81,7 @@ export default function Microsites() {
     },
   });
 
-  const columns: ColumnDef<Microsite>[] = [
+  const columns: TableColumnDef<Microsite>[] = [
     {
       accessorKey: 'performer_name',
       header: () => (

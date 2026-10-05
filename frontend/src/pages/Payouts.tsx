@@ -1,5 +1,4 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { type ColumnDef } from '@tanstack/react-table';
 import { Layout } from '@/components/layout';
 import {
   Card,
@@ -12,6 +11,7 @@ import {
   useToast,
   emptyStates,
   HelpTooltip,
+  type TableColumnDef,
 } from '@/components/common';
 import { payouts as helpContent } from '@/constants/helpContent';
 import { payoutsApi } from '@/api';
@@ -51,7 +51,7 @@ export default function Payouts() {
     },
   });
 
-  const columns: ColumnDef<Payout>[] = [
+  const columns: TableColumnDef<Payout>[] = [
     {
       accessorKey: 'booking_number',
       header: () => (

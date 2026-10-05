@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
-import { type ColumnDef } from '@tanstack/react-table';
-import Table, { SortableHeader, createCheckboxColumn } from './Table';
+import { render, screen, fireEvent, within } from '@testing-library/react';
+import { type RowSelectionState } from '@tanstack/react-table';
+import Table, { SortableHeader, createCheckboxColumn, type TableColumnDef } from './Table';
 
 interface TestData {
   id: number;
@@ -15,7 +16,7 @@ const testData: TestData[] = [
   { id: 3, name: 'Bob Johnson', email: 'bob@example.com' },
 ];
 
-const testColumns: ColumnDef<TestData, unknown>[] = [
+const testColumns: TableColumnDef<TestData>[] = [
   { accessorKey: 'name', header: 'Name' },
   { accessorKey: 'email', header: 'Email' },
 ];
@@ -336,6 +337,168 @@ describe('SortableHeader', () => {
   it('has aria-sort none when unsorted', () => {
     render(<SortableHeader>Column</SortableHeader>);
     expect(screen.getByRole('button')).toHaveAttribute('aria-sort', 'none');
+  });
+});
+
+// Stateful harness: exercises controlled row selection through the v9 store.
+function SelectableTable({
+  initial = {},
+  onChange,
+}: {
+  initial?: RowSelectionState;
+  onChange?: (selection: RowSelectionState) => void;
+}) {
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>(initial);
+  return (
+    <>
+      <Table
+        data={testData}
+        columns={[createCheckboxColumn<TestData>(), ...testColumns]}
+        rowSelection={rowSelection}
+        onRowSelectionChange={(updater) => {
+          setRowSelection((prev) => {
+            const next = typeof updater === 'function' ? updater(prev) : updater;
+            onChange?.(next);
+            return next;
+          });
+        }}
+      />
+      <output data-testid="selected">{Object.keys(rowSelection).filter((k) => rowSelection[k]).sort().join(',')}</output>
+    </>
+  );
+}
+
+describe('row selection with checkbox column (TanStack Table v9)', () => {
+  const dataRows = () => screen.getAllByRole('row').slice(1);
+  const selectAll = () => screen.getByRole('checkbox', { name: /select all rows/i });
+
+  it('toggles a single row via its checkbox and reflects it in the DOM', () => {
+    render(<SelectableTable />);
+
+    const rowCheckbox = within(dataRows()[1]).getByRole('checkbox', { name: 'Select row' });
+    fireEvent.click(rowCheckbox);
+
+    expect(screen.getByTestId('selected')).toHaveTextContent('1');
+    expect(dataRows()[1]).toHaveAttribute('aria-selected', 'true');
+    expect(dataRows()[1]).toHaveClass('bg-primary-50');
+    expect(within(dataRows()[1]).getByRole('checkbox', { name: 'Deselect row' })).toBeChecked();
+    expect(dataRows()[0]).not.toHaveAttribute('aria-selected');
+  });
+
+  it('marks select-all as indeterminate when some (not all) rows are selected', () => {
+    render(<SelectableTable initial={{ '0': true }} />);
+
+    const header = selectAll() as HTMLInputElement;
+    expect(header.checked).toBe(false);
+    expect(header.indeterminate).toBe(true);
+  });
+
+  it('select-all checkbox selects every row, then clears them', () => {
+    render(<SelectableTable />);
+
+    fireEvent.click(selectAll());
+    expect(screen.getByTestId('selected')).toHaveTextContent('0,1,2');
+    const header = screen.getByRole('checkbox', { name: /deselect all rows/i }) as HTMLInputElement;
+    expect(header.checked).toBe(true);
+    expect(header.indeterminate).toBe(false);
+    dataRows().forEach((row) => expect(row).toHaveAttribute('aria-selected', 'true'));
+
+    fireEvent.click(header);
+    expect(screen.getByTestId('selected')).toHaveTextContent('');
+    dataRows().forEach((row) => expect(row).not.toHaveAttribute('aria-selected'));
+  });
+
+  it('Ctrl+A selects all and Escape clears the selection', () => {
+    render(<SelectableTable />);
+
+    fireEvent.keyDown(dataRows()[0], { key: 'a', ctrlKey: true });
+    expect(screen.getByTestId('selected')).toHaveTextContent('0,1,2');
+
+    fireEvent.keyDown(dataRows()[0], { key: 'Escape' });
+    expect(screen.getByTestId('selected')).toHaveTextContent('');
+  });
+
+  it('Space toggles the focused row on and off', () => {
+    const onChange = vi.fn();
+    render(<SelectableTable onChange={onChange} />);
+
+    fireEvent.keyDown(dataRows()[2], { key: ' ' });
+    expect(onChange).toHaveBeenLastCalledWith({ '2': true });
+    expect(dataRows()[2]).toHaveAttribute('aria-selected', 'true');
+
+    fireEvent.keyDown(dataRows()[2], { key: ' ' });
+    expect(screen.getByTestId('selected')).toHaveTextContent('');
+  });
+
+  it('clicking a row checkbox does not trigger onRowClick', () => {
+    const handleRowClick = vi.fn();
+    render(
+      <Table
+        data={testData}
+        columns={[createCheckboxColumn<TestData>(), ...testColumns]}
+        rowSelection={{}}
+        onRowSelectionChange={vi.fn()}
+        onRowClick={handleRowClick}
+      />
+    );
+
+    fireEvent.click(within(screen.getAllByRole('row')[1]).getByRole('checkbox'));
+    expect(handleRowClick).not.toHaveBeenCalled();
+  });
+
+  it('does not select rows when selection is not enabled', () => {
+    render(<Table data={testData} columns={testColumns} />);
+
+    fireEvent.keyDown(screen.getAllByRole('row')[1], { key: ' ' });
+    expect(screen.getAllByRole('row')[1]).not.toHaveAttribute('aria-selected');
+  });
+});
+
+describe('sorting through SortableHeader inside Table (TanStack Table v9)', () => {
+  function SortedTable() {
+    const [sorted, setSorted] = useState<'asc' | 'desc' | false>(false);
+    const data =
+      sorted === false
+        ? testData
+        : [...testData].sort((a, b) =>
+            sorted === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)
+          );
+    const columns: TableColumnDef<TestData>[] = [
+      {
+        accessorKey: 'name',
+        header: () => (
+          <SortableHeader
+            sorted={sorted}
+            columnName="Name"
+            onSort={() => setSorted((s) => (s === false ? 'asc' : s === 'asc' ? 'desc' : false))}
+          >
+            Name
+          </SortableHeader>
+        ),
+      },
+      { accessorKey: 'email', header: 'Email' },
+    ];
+    return <Table data={data} columns={columns} />;
+  }
+
+  const names = () =>
+    screen.getAllByRole('row').slice(1).map((row) => within(row).getAllByRole('gridcell')[0].textContent);
+
+  it('cycles none -> ascending -> descending -> none and re-renders row order', () => {
+    render(<SortedTable />);
+    expect(names()).toEqual(['John Doe', 'Jane Smith', 'Bob Johnson']);
+
+    fireEvent.click(screen.getByRole('button', { name: /Name/ }));
+    expect(names()).toEqual(['Bob Johnson', 'Jane Smith', 'John Doe']);
+    expect(screen.getByRole('button', { name: /sorted ascending/ })).toHaveAttribute('aria-sort', 'ascending');
+
+    fireEvent.click(screen.getByRole('button', { name: /Name/ }));
+    expect(names()).toEqual(['John Doe', 'Jane Smith', 'Bob Johnson']);
+    expect(screen.getByRole('button', { name: /sorted descending/ })).toHaveAttribute('aria-sort', 'descending');
+
+    fireEvent.click(screen.getByRole('button', { name: /Name/ }));
+    expect(names()).toEqual(['John Doe', 'Jane Smith', 'Bob Johnson']);
+    expect(screen.getByRole('button', { name: /Name/ })).toHaveAttribute('aria-sort', 'none');
   });
 });
 
