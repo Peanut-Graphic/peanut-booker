@@ -290,6 +290,7 @@ class Peanut_Booker_REST_API {
     public function get_performers( $request ) {
         $result = Peanut_Booker_Performer::query(
             array(
+                'public_only'    => true,
                 'paged'          => $request['page'],
                 'posts_per_page' => $request['per_page'],
                 'category'       => $request['category'],
@@ -308,15 +309,25 @@ class Peanut_Booker_REST_API {
      * @return WP_REST_Response|WP_Error
      */
     public function get_performer( $request ) {
-        $performer = Peanut_Booker_Performer::get( $request['id'] );
+        $performer = $this->get_public_performer( $request['id'] );
 
-        if ( ! $performer || ! $performer->profile_id ) {
+        if ( ! $performer ) {
             return new WP_Error( 'not_found', __( 'Performer not found.', 'peanut-booker' ), array( 'status' => 404 ) );
         }
 
         $data = Peanut_Booker_Performer::get_display_data( $performer->profile_id );
 
         return rest_ensure_response( $data );
+    }
+
+    /** Resolve only publicly published profiles for anonymous catalog routes. */
+    private function get_public_performer( $id ) {
+        $performer = Peanut_Booker_Performer::get( $id );
+        $post = $performer && $performer->profile_id ? get_post( $performer->profile_id ) : null;
+        if ( ! $post || 'pb_performer' !== $post->post_type || 'publish' !== $post->post_status || '' !== (string) $post->post_password ) {
+            return null;
+        }
+        return $performer;
     }
 
     /**
@@ -326,6 +337,10 @@ class Peanut_Booker_REST_API {
      * @return WP_REST_Response
      */
     public function get_performer_availability( $request ) {
+        if ( ! $this->get_public_performer( $request['id'] ) ) {
+            return new WP_Error( 'not_found', __( 'Performer not found.', 'peanut-booker' ), array( 'status' => 404 ) );
+        }
+
         $month = $request->get_param( 'month' ) ?: gmdate( 'Y-m' );
 
         $calendar = Peanut_Booker_Availability::get_calendar_data( $request['id'], $month );
@@ -345,6 +360,10 @@ class Peanut_Booker_REST_API {
      * @return WP_REST_Response
      */
     public function get_performer_reviews( $request ) {
+        if ( ! $this->get_public_performer( $request['id'] ) ) {
+            return new WP_Error( 'not_found', __( 'Performer not found.', 'peanut-booker' ), array( 'status' => 404 ) );
+        }
+
         $page     = $request->get_param( 'page' ) ?: 1;
         $per_page = $request->get_param( 'per_page' ) ?: 10;
         $offset   = ( $page - 1 ) * $per_page;
