@@ -452,6 +452,12 @@ class Peanut_Booker_Performer {
             'order'          => $args['order'],
         );
 
+        // Public REST catalogs must exclude protected profiles before pagination.
+        // Internal callers retain their existing query semantics.
+        if ( ! empty( $args['public_only'] ) ) {
+            $query_args['has_password'] = false;
+        }
+
         // Search.
         if ( ! empty( $args['search'] ) ) {
             $query_args['s'] = sanitize_text_field( $args['search'] );

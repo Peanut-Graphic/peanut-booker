@@ -653,6 +653,7 @@ class Peanut_Booker_Market {
      */
     public static function query( $args = array() ) {
         $defaults = array(
+            'public_only'    => false,
             'status'         => self::STATUS_OPEN,
             'category'       => '',
             'service_area'   => '',
@@ -677,6 +678,11 @@ class Peanut_Booker_Market {
             'orderby'        => $args['orderby'],
             'order'          => $args['order'],
         );
+
+        // Only the public REST catalog opts into this; preserve internal callers.
+        if ( $args['public_only'] ) {
+            $query_args['has_password'] = false;
+        }
 
         // Status filter.
         if ( ! empty( $args['status'] ) ) {
