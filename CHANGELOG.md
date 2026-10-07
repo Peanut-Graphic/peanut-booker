@@ -2,6 +2,12 @@
 
 All notable changes to Peanut Booker will be documented in this file.
 
+## [Unreleased]
+
+### Security
+- Public market list/detail responses now expose only a customer's display name and avatar, not the internal contact record (email, decrypted phone, street address, ZIP, or other private fields). Public detail requests reject unpublished and password-protected events, and public collection queries exclude password-protected events before pagination. Authorized internal serializers and callers are unchanged.
+- Added an offline, synthetic real-callback regression (`php tests/security/public-market-boundary.php`), also executed by the Property suite; real WordPress integration remains a separate verification requirement.
+
 ## [1.8.0] - 2026-10-05
 
 ### Upgrade notes

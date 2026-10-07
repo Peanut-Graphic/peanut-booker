@@ -368,6 +368,7 @@ class Peanut_Booker_REST_API {
     public function get_market_events( $request ) {
         $result = Peanut_Booker_Market::query(
             array(
+                'public_only'    => true,
                 'paged'          => $request['page'],
                 'posts_per_page' => $request['per_page'],
                 'category'       => $request['category'],
@@ -376,7 +377,19 @@ class Peanut_Booker_REST_API {
             )
         );
 
+        $result['events'] = array_map( array( $this, 'public_market_event' ), $result['events'] );
         return rest_ensure_response( $result );
+    }
+
+    /**
+     * Public catalog projection. Never expose the internal customer/contact DTO.
+     */
+    private function public_market_event( array $event ): array {
+        $event['customer'] = array_intersect_key(
+            is_array( $event['customer'] ?? null ) ? $event['customer'] : array(),
+            array_flip( array( 'display_name', 'avatar_url' ) )
+        );
+        return $event;
     }
 
     /**
@@ -386,13 +399,18 @@ class Peanut_Booker_REST_API {
      * @return WP_REST_Response|WP_Error
      */
     public function get_market_event( $request ) {
+        $post = get_post( $request['id'] );
+        if ( ! $post || 'pb_market_event' !== $post->post_type || 'publish' !== $post->post_status || '' !== (string) $post->post_password ) {
+            return new WP_Error( 'not_found', __( 'Event not found.', 'peanut-booker' ), array( 'status' => 404 ) );
+        }
+
         $event = Peanut_Booker_Market::get_event_data( $request['id'] );
 
         if ( empty( $event ) ) {
             return new WP_Error( 'not_found', __( 'Event not found.', 'peanut-booker' ), array( 'status' => 404 ) );
         }
 
-        return rest_ensure_response( $event );
+        return rest_ensure_response( $this->public_market_event( $event ) );
     }
 
     /**
