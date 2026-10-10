@@ -182,6 +182,74 @@ class Peanut_Booker_Availability {
     }
 
     /**
+     * Reduce calendar data to what anyone may see about a performer's diary.
+     *
+     * Public visitors only need to know whether a date is free: they get the
+     * date, its status and the status color. Slot detail (event and venue
+     * names, locations, notes, times, booking IDs, block types) is the
+     * performer's private calendar.
+     *
+     * @param array $calendar Calendar data from get_calendar_data().
+     * @return array Calendar keyed by date with date/status/color only.
+     */
+    public static function to_public_calendar( $calendar ) {
+        $public = array();
+
+        foreach ( (array) $calendar as $date => $day ) {
+            $public[ $date ] = array(
+                'date'   => $day['date'] ?? $date,
+                'status' => $day['status'] ?? self::STATUS_AVAILABLE,
+                'color'  => $day['color'] ?? self::get_status_color( self::STATUS_AVAILABLE ),
+            );
+        }
+
+        return $public;
+    }
+
+    /**
+     * Whether the current user may see a performer's full calendar detail.
+     *
+     * @param object $performer Performer row.
+     * @return bool True for the performer themselves and for administrators.
+     */
+    public static function can_view_private_calendar( $performer ) {
+        if ( ! $performer ) {
+            return false;
+        }
+
+        $user_id = get_current_user_id();
+        if ( $user_id && (int) $performer->user_id === (int) $user_id ) {
+            return true;
+        }
+
+        return current_user_can( 'pb_manage_performers' ) || current_user_can( 'manage_options' );
+    }
+
+    /**
+     * Normalize a requested month to Y-m, falling back to the current month.
+     *
+     * Accepts "2026-10", or a separate year and month ("2026" + "10").
+     *
+     * @param mixed $month Month (Y-m, or 1-12 when $year is given).
+     * @param mixed $year  Optional four-digit year.
+     * @return string Month in Y-m format.
+     */
+    public static function normalize_month( $month, $year = '' ) {
+        $month = is_scalar( $month ) ? trim( (string) $month ) : '';
+        $year  = is_scalar( $year ) ? trim( (string) $year ) : '';
+
+        if ( '' !== $year && preg_match( '/^\d{4}$/', $year ) && preg_match( '/^\d{1,2}$/', $month ) ) {
+            $month = sprintf( '%s-%02d', $year, (int) $month );
+        }
+
+        if ( preg_match( '/^(\d{4})-(0[1-9]|1[0-2])$/', $month, $parts ) && (int) $parts[1] >= 1970 && (int) $parts[1] <= 2100 ) {
+            return $month;
+        }
+
+        return gmdate( 'Y-m' );
+    }
+
+    /**
      * Get status color.
      *
      * @param string $status     Status.
@@ -575,27 +643,40 @@ class Peanut_Booker_Availability {
     }
 
     /**
-     * AJAX: Get availability.
+     * AJAX: Get availability (public calendar navigation).
+     *
+     * Same boundary as the REST route: only publicly listed performers, and
+     * only date/status/color unless the viewer is the performer or an admin.
      */
     public function ajax_get_availability() {
-        // Verify nonce for public endpoint
-        if ( ! isset( $_GET['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( $_GET['nonce'] ), 'pb_availability_public' ) ) {
-            wp_send_json_error( array( 'message' => __( 'Security check failed.', 'peanut-booker' ) ) );
+        Peanut_Booker_Rate_Limiter::enforce_ajax( 'general' );
+
+        // The public script sends peanutBooker.nonces.availability.
+        if ( ! check_ajax_referer( 'pb_availability_nonce', 'nonce', false ) ) {
+            wp_send_json_error( array( 'message' => __( 'Security check failed.', 'peanut-booker' ) ), 403 );
         }
 
-        $performer_id = absint( $_GET['performer_id'] ?? 0 );
-        $month        = sanitize_text_field( $_GET['month'] ?? gmdate( 'Y-m' ) );
+        // phpcs:disable WordPress.Security.NonceVerification.Recommended -- verified above.
+        $performer_id = absint( wp_unslash( $_REQUEST['performer_id'] ?? 0 ) );
+        $month        = self::normalize_month(
+            sanitize_text_field( wp_unslash( $_REQUEST['month'] ?? '' ) ),
+            sanitize_text_field( wp_unslash( $_REQUEST['year'] ?? '' ) )
+        );
+        // phpcs:enable WordPress.Security.NonceVerification.Recommended
 
-        if ( ! $performer_id ) {
-            wp_send_json_error( array( 'message' => __( 'Invalid performer.', 'peanut-booker' ) ) );
+        $performer = $performer_id ? Peanut_Booker_Performer::get( $performer_id ) : null;
+        $private   = self::can_view_private_calendar( $performer );
+
+        if ( ! $performer || ( ! $private && ! Peanut_Booker_Performer::is_public_profile( $performer ) ) ) {
+            wp_send_json_error( array( 'message' => __( 'Performer not found.', 'peanut-booker' ) ), 404 );
         }
 
-        $calendar = self::get_calendar_data( $performer_id, $month );
+        $calendar = self::get_calendar_data( $performer->id, $month );
 
         wp_send_json_success(
             array(
-                'calendar' => $calendar,
-                'html'     => self::render_calendar( $performer_id, $month, false ),
+                'calendar' => $private ? $calendar : self::to_public_calendar( $calendar ),
+                'html'     => self::render_calendar( $performer->id, $month, false ),
             )
         );
     }

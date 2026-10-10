@@ -22,6 +22,7 @@ class Peanut_Booker_Rate_Limiter {
         'review' => ['limit' => 5, 'window' => 300],           // 5 reviews per 5 minutes
         'signup' => ['limit' => 5, 'window' => 300],           // 5 signups per 5 minutes
         'general' => ['limit' => 60, 'window' => 60],          // 60 requests per minute (for GET)
+        'tracking' => ['limit' => 30, 'window' => 60],         // 30 public microsite tracking pings per minute
     ];
 
     /**
@@ -174,18 +175,135 @@ class Peanut_Booker_Rate_Limiter {
      * @return string Hashed identifier
      */
     private static function get_identifier(): string {
-        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+        // Hash IP for privacy
+        return wp_hash(self::get_client_ip() . wp_salt('auth'));
+    }
 
-        // Check for proxied IP
-        if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            $forwarded = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
-            $ip = trim($forwarded[0]);
-        } elseif (!empty($_SERVER['HTTP_X_REAL_IP'])) {
-            $ip = $_SERVER['HTTP_X_REAL_IP'];
+    /**
+     * The address of the client making this request.
+     *
+     * REMOTE_ADDR is the connecting peer and cannot be forged over TCP.
+     * X-Forwarded-For / X-Real-IP are plain request headers the client can
+     * set to anything, so they are used ONLY when the connecting peer is a
+     * configured trusted proxy. There are none by default; configure them
+     * with the `peanut_booker_trusted_proxies` option (array or comma list of
+     * IPs / CIDR ranges) or the filter of the same name.
+     *
+     * Behind trusted proxies, X-Forwarded-For is read right to left and the
+     * first address that is not itself a trusted proxy is the client (the
+     * left-most entries are whatever the client sent).
+     *
+     * @return string Client IP address ('' if none can be determined).
+     */
+    public static function get_client_ip(): string {
+        $remote = self::valid_ip($_SERVER['REMOTE_ADDR'] ?? '');
+        if ('' === $remote) {
+            return '';
         }
 
-        // Hash IP for privacy
-        return wp_hash($ip . wp_salt('auth'));
+        $trusted = self::get_trusted_proxies();
+        if (!$trusted || !self::ip_matches($remote, $trusted)) {
+            return $remote;
+        }
+
+        if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $hops = array_reverse(explode(',', (string) wp_unslash($_SERVER['HTTP_X_FORWARDED_FOR'])));
+            foreach ($hops as $hop) {
+                $ip = self::valid_ip($hop);
+                if ('' === $ip) {
+                    // A malformed hop means the chain cannot be trusted past here.
+                    break;
+                }
+                if (!self::ip_matches($ip, $trusted)) {
+                    return $ip;
+                }
+            }
+            return $remote;
+        }
+
+        if (!empty($_SERVER['HTTP_X_REAL_IP'])) {
+            $ip = self::valid_ip(wp_unslash($_SERVER['HTTP_X_REAL_IP']));
+            if ('' !== $ip) {
+                return $ip;
+            }
+        }
+
+        return $remote;
+    }
+
+    /**
+     * Configured trusted proxy addresses / CIDR ranges.
+     *
+     * @return string[]
+     */
+    private static function get_trusted_proxies(): array {
+        $configured = get_option('peanut_booker_trusted_proxies', array());
+        if (is_string($configured)) {
+            $configured = explode(',', $configured);
+        }
+
+        /**
+         * Filter the proxies whose X-Forwarded-For / X-Real-IP headers are trusted.
+         *
+         * @param string[] $proxies IPs or CIDR ranges. Default: none.
+         */
+        $configured = apply_filters('peanut_booker_trusted_proxies', (array) $configured);
+
+        return array_values(array_filter(array_map('trim', array_map('strval', (array) $configured))));
+    }
+
+    /**
+     * Return a trimmed, valid IP address, or '' when it is not one.
+     *
+     * @param mixed $value Candidate address.
+     * @return string
+     */
+    private static function valid_ip($value): string {
+        $value = trim((string) $value);
+        return false !== filter_var($value, FILTER_VALIDATE_IP) ? $value : '';
+    }
+
+    /**
+     * Whether an IP matches any of the given IPs / CIDR ranges.
+     *
+     * @param string   $ip     IP address.
+     * @param string[] $ranges IPs or CIDR ranges (IPv4 or IPv6).
+     * @return bool
+     */
+    private static function ip_matches(string $ip, array $ranges): bool {
+        $packed = @inet_pton($ip);
+        if (false === $packed) {
+            return false;
+        }
+
+        foreach ($ranges as $range) {
+            $bits = null;
+            if (false !== strpos($range, '/')) {
+                [$range, $bits] = explode('/', $range, 2);
+                $bits = (int) $bits;
+            }
+            $subnet = @inet_pton(trim($range));
+            if (false === $subnet || strlen($subnet) !== strlen($packed)) {
+                continue;
+            }
+            $max = strlen($packed) * 8;
+            $bits = null === $bits ? $max : max(0, min($max, $bits));
+
+            $bytes = intdiv($bits, 8);
+            $rest  = $bits % 8;
+            if (substr($packed, 0, $bytes) !== substr($subnet, 0, $bytes)) {
+                continue;
+            }
+            if (0 === $rest) {
+                return true;
+            }
+            $mask = (0xFF << (8 - $rest)) & 0xFF;
+            if ((ord($packed[$bytes]) & $mask) === (ord($subnet[$bytes]) & $mask)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
