@@ -539,8 +539,19 @@ class Peanut_Booker_Booking {
             return;
         }
 
-        // Release escrow to performer.
-        self::release_escrow( $booking_id );
+        // Release escrow to performer, only if the booking was paid in full.
+        // A booking completed with only a deposit (or nothing) collected keeps
+        // its escrow state for staff to resolve; it is not paid out.
+        $released = self::release_escrow( $booking_id );
+        if ( is_wp_error( $released ) ) {
+            error_log(
+                sprintf(
+                    'Peanut Booker: booking %d completed but escrow not released: %s',
+                    absint( $booking_id ),
+                    $released->get_error_code()
+                )
+            );
+        }
 
         // Update performer stats.
         $performer = Peanut_Booker_Performer::get( $booking->performer_id );
@@ -587,16 +598,95 @@ class Peanut_Booker_Booking {
     }
 
     /**
+     * Whether a booking's escrow may be paid out to the performer.
+     *
+     * A payout sends the performer `performer_payout`: the booking TOTAL less
+     * commission. That money is only held once the customer has paid in full,
+     * so a payout requires all of:
+     * - booking_status = completed (the event happened),
+     * - fully_paid = 1 (deposit and balance collected),
+     * - escrow_status = full_held (still held: not pending, deposit_held,
+     *   released or refunded).
+     * A deposit-only booking is never paid out; its deposit covers only part
+     * of the payout. Collect the balance first.
+     *
+     * @param object|null $booking Booking row.
+     * @return true|WP_Error True when eligible, otherwise why not.
+     */
+    public static function is_payout_eligible( $booking ) {
+        if ( ! $booking ) {
+            return new WP_Error( 'not_found', __( 'Booking not found.', 'peanut-booker' ), array( 'status' => 404 ) );
+        }
+
+        if ( self::ESCROW_RELEASED === $booking->escrow_status ) {
+            return new WP_Error( 'already_released', __( 'Payout already released.', 'peanut-booker' ), array( 'status' => 409 ) );
+        }
+
+        if ( self::STATUS_COMPLETED !== $booking->booking_status ) {
+            return new WP_Error( 'invalid_status', __( 'Booking must be completed to release payout.', 'peanut-booker' ), array( 'status' => 409 ) );
+        }
+
+        if ( empty( $booking->fully_paid ) || self::ESCROW_FULL !== $booking->escrow_status ) {
+            return new WP_Error(
+                'not_paid_in_full',
+                sprintf(
+                    /* translators: %s: escrow status */
+                    __( 'Payout can only be released once the booking is paid in full and held in escrow (escrow status is "%s"). Collect the remaining balance first.', 'peanut-booker' ),
+                    $booking->escrow_status
+                ),
+                array( 'status' => 409 )
+            );
+        }
+
+        return true;
+    }
+
+    /**
      * Release escrow funds to performer.
      *
-     * @param int $booking_id Booking ID.
-     * @return bool Success.
+     * Refuses bookings that are not eligible (see is_payout_eligible()). The
+     * escrow state change is conditional on the booking still being
+     * full_held, so concurrent releases cannot pay twice.
+     *
+     * @param int $booking_id  Booking ID.
+     * @param int $released_by User who released it (0 = automatic, on completion).
+     * @return true|WP_Error True on release, WP_Error when refused.
      */
-    public static function release_escrow( $booking_id ) {
-        $booking = self::get( $booking_id );
-        if ( ! $booking ) {
-            return false;
+    public static function release_escrow( $booking_id, $released_by = 0 ) {
+        $booking  = self::get( $booking_id );
+        $eligible = self::is_payout_eligible( $booking );
+        if ( is_wp_error( $eligible ) ) {
+            return $eligible;
         }
+
+        $now = current_time( 'mysql' );
+
+        // Claim the release atomically: only one caller moves full_held -> released.
+        $claimed = Peanut_Booker_Database::update(
+            'bookings',
+            array(
+                'escrow_status' => self::ESCROW_RELEASED,
+                'payout_date'   => $now,
+            ),
+            array(
+                'id'            => absint( $booking_id ),
+                'escrow_status' => self::ESCROW_FULL,
+            )
+        );
+        if ( ! $claimed ) {
+            return new WP_Error( 'already_released', __( 'Payout already released.', 'peanut-booker' ), array( 'status' => 409 ) );
+        }
+
+        $released_by = absint( $released_by );
+        $releaser    = $released_by ? get_userdata( $released_by ) : null;
+        $notes       = $released_by
+            ? sprintf(
+                /* translators: 1: user ID, 2: user login */
+                __( 'Escrow released to performer by user #%1$d (%2$s)', 'peanut-booker' ),
+                $released_by,
+                $releaser ? $releaser->user_login : __( 'unknown', 'peanut-booker' )
+            )
+            : __( 'Escrow released to performer automatically on completion', 'peanut-booker' );
 
         // Record transaction.
         Peanut_Booker_Database::insert(
@@ -608,16 +698,7 @@ class Peanut_Booker_Booking {
                 'amount'           => $booking->performer_payout,
                 'payee_id'         => $booking->performer_id,
                 'status'           => 'completed',
-                'notes'            => __( 'Escrow released to performer', 'peanut-booker' ),
-            )
-        );
-
-        // Update booking escrow status.
-        self::update(
-            $booking_id,
-            array(
-                'escrow_status' => self::ESCROW_RELEASED,
-                'payout_date'   => current_time( 'mysql' ),
+                'notes'            => $notes,
             )
         );
 
