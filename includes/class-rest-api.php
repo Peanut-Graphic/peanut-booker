@@ -323,11 +323,7 @@ class Peanut_Booker_REST_API {
     /** Resolve only publicly published profiles for anonymous catalog routes. */
     private function get_public_performer( $id ) {
         $performer = Peanut_Booker_Performer::get( $id );
-        $post = $performer && $performer->profile_id ? get_post( $performer->profile_id ) : null;
-        if ( ! $post || 'pb_performer' !== $post->post_type || 'publish' !== $post->post_status || '' !== (string) $post->post_password ) {
-            return null;
-        }
-        return $performer;
+        return Peanut_Booker_Performer::is_public_profile( $performer ) ? $performer : null;
     }
 
     /**
@@ -337,13 +333,20 @@ class Peanut_Booker_REST_API {
      * @return WP_REST_Response
      */
     public function get_performer_availability( $request ) {
-        if ( ! $this->get_public_performer( $request['id'] ) ) {
+        $performer = $this->get_public_performer( $request['id'] );
+        if ( ! $performer ) {
             return new WP_Error( 'not_found', __( 'Performer not found.', 'peanut-booker' ), array( 'status' => 404 ) );
         }
 
-        $month = $request->get_param( 'month' ) ?: gmdate( 'Y-m' );
+        $month = Peanut_Booker_Availability::normalize_month( $request->get_param( 'month' ) );
 
         $calendar = Peanut_Booker_Availability::get_calendar_data( $request['id'], $month );
+
+        // Anyone may see whether a date is free; only the performer and
+        // administrators see what is on it (event, venue, notes, booking IDs).
+        if ( ! Peanut_Booker_Availability::can_view_private_calendar( $performer ) ) {
+            $calendar = Peanut_Booker_Availability::to_public_calendar( $calendar );
+        }
 
         return rest_ensure_response(
             array(
@@ -591,7 +594,8 @@ class Peanut_Booker_REST_API {
      * @return WP_REST_Response
      */
     public function get_featured_performers( $request ) {
-        $limit      = $request->get_param( 'limit' ) ?: 4;
+        $limit      = absint( $request->get_param( 'limit' ) ?: 4 );
+        $limit      = min( max( 1, $limit ), Peanut_Booker_Performer::FEATURED_MAX );
         $performers = Peanut_Booker_Performer::get_featured( $limit );
 
         return rest_ensure_response( $performers );
@@ -606,21 +610,34 @@ class Peanut_Booker_REST_API {
     public function track_microsite_view( $request ) {
         global $wpdb;
 
-        $slug = sanitize_title( $request['slug'] );
-
-        // Get microsite by slug.
-        $microsite = Peanut_Booker_Database::get_row( 'microsites', array( 'slug' => $slug ) );
-
-        if ( ! $microsite ) {
-            return new WP_Error( 'not_found', __( 'Microsite not found.', 'peanut-booker' ), array( 'status' => 404 ) );
+        // Public and unauthenticated: throttle per client before any lookup.
+        $rate_limit = Peanut_Booker_Rate_Limiter::check_or_respond( 'tracking' );
+        if ( null !== $rate_limit ) {
+            return $rate_limit;
         }
 
-        $params = $request->get_json_params();
-        $event_type = sanitize_text_field( $params['event'] ?? 'page_view' );
+        // The response is identical whether or not the slug exists or is
+        // active, so this endpoint cannot be used to enumerate microsites.
+        $accepted = rest_ensure_response( array( 'success' => true ) );
+
+        $slug = sanitize_title( $request['slug'] );
+
+        // Get microsite by slug. Only live (active) microsites are counted.
+        $microsite = Peanut_Booker_Database::get_row( 'microsites', array( 'slug' => $slug ) );
+
+        if ( ! $microsite || 'active' !== $microsite->status ) {
+            return $accepted;
+        }
+
+        $params     = (array) $request->get_json_params();
+        $event_type = sanitize_key( $params['event'] ?? 'page_view' );
+        if ( ! in_array( $event_type, array( 'page_view', 'booking_click' ), true ) ) {
+            return $accepted;
+        }
 
         // Get referrer domain (hash the full referrer to protect privacy).
         $referrer_domain = '';
-        if ( ! empty( $params['referrer'] ) ) {
+        if ( ! empty( $params['referrer'] ) && is_string( $params['referrer'] ) ) {
             $parsed = wp_parse_url( $params['referrer'] );
             $referrer_domain = isset( $parsed['host'] ) ? sanitize_text_field( $parsed['host'] ) : '';
         }
@@ -676,6 +693,6 @@ class Peanut_Booker_REST_API {
             ) );
         }
 
-        return rest_ensure_response( array( 'success' => true ) );
+        return $accepted;
     }
 }

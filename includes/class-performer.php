@@ -20,6 +20,11 @@ if ( ! defined( 'WPINC' ) ) {
 class Peanut_Booker_Performer {
 
     /**
+     * Most featured performers a single request may return.
+     */
+    const FEATURED_MAX = 12;
+
+    /**
      * Constructor.
      */
     public function __construct() {
@@ -523,6 +528,28 @@ class Peanut_Booker_Performer {
     }
 
     /**
+     * Whether a performer's profile is publicly listed.
+     *
+     * Public means a published pb_performer post with no password. Drafts,
+     * pending, private, trashed and password-protected profiles are not.
+     *
+     * @param object $performer Performer row.
+     * @return bool
+     */
+    public static function is_public_profile( $performer ) {
+        if ( ! $performer || empty( $performer->profile_id ) ) {
+            return false;
+        }
+
+        $post = get_post( $performer->profile_id );
+
+        return $post
+            && 'pb_performer' === $post->post_type
+            && 'publish' === $post->post_status
+            && '' === (string) $post->post_password;
+    }
+
+    /**
      * Get featured/sponsored performers.
      *
      * @param int $limit Number to return.
@@ -530,6 +557,8 @@ class Peanut_Booker_Performer {
      */
     public static function get_featured( $limit = 4 ) {
         global $wpdb;
+
+        $limit = min( max( 1, absint( $limit ) ), self::FEATURED_MAX );
 
         $table = $wpdb->prefix . 'pb_sponsored_slots';
         $now   = current_time( 'mysql' );
@@ -553,7 +582,8 @@ class Peanut_Booker_Performer {
 
         foreach ( $sponsored as $performer_id ) {
             $performer = self::get( $performer_id );
-            if ( $performer && $performer->profile_id ) {
+            // A paid slot does not make an unpublished or protected profile public.
+            if ( self::is_public_profile( $performer ) ) {
                 $results[] = self::get_display_data( $performer->profile_id );
             }
         }
@@ -567,6 +597,7 @@ class Peanut_Booker_Performer {
                 array(
                     'post_type'      => 'pb_performer',
                     'post_status'    => 'publish',
+                    'has_password'   => false,
                     'posts_per_page' => $remaining,
                     'post__not_in'   => $exclude,
                     'meta_query'     => array(

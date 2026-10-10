@@ -263,13 +263,43 @@ class Peanut_Booker_Google_Auth {
             return new WP_Error( 'missing_data', __( 'Failed to get user information from Google.', 'peanut-booker' ) );
         }
 
+        // SECURITY: Only trust the email when Google says it is verified.
+        // An unverified address could belong to someone else, and the email
+        // is what ties a Google account to an existing WordPress account.
+        if ( ! self::is_verified_email( $google_user ) ) {
+            return new WP_Error( 'email_not_verified', __( 'Your Google account email address is not verified. Verify it with Google, or sign in with your password.', 'peanut-booker' ) );
+        }
+
         // Check if user exists by Google ID.
         $user_id = $this->get_user_by_google_id( $google_id );
+
+        // Linking from the profile always targets the signed-in user; it never
+        // goes through the email match below.
+        if ( 'link' === $action ) {
+            if ( ! is_user_logged_in() ) {
+                return new WP_Error( 'not_logged_in', __( 'You must be logged in to link your Google account.', 'peanut-booker' ) );
+            }
+            $current_user_id = get_current_user_id();
+            if ( $user_id && (int) $user_id !== (int) $current_user_id ) {
+                return new WP_Error( 'already_linked', __( 'This Google account is already connected to a different account.', 'peanut-booker' ) );
+            }
+            update_user_meta( $current_user_id, 'pb_google_id', $google_id );
+            return true;
+        }
 
         // If not found by Google ID, check by email.
         if ( ! $user_id ) {
             $user = get_user_by( 'email', $email );
             if ( $user ) {
+                // SECURITY: Never link automatically when the account has
+                // elevated privileges or is already linked to another Google
+                // account. Those users sign in with their password and link
+                // Google from their profile (the 'link' action).
+                $existing_google_id = (string) get_user_meta( $user->ID, 'pb_google_id', true );
+                if ( self::is_privileged_user( $user ) || ( '' !== $existing_google_id && $existing_google_id !== (string) $google_id ) ) {
+                    return new WP_Error( 'link_required', __( 'An account with this email already exists. Sign in with your password, then connect Google from your profile.', 'peanut-booker' ) );
+                }
+
                 $user_id = $user->ID;
                 // Link Google ID to existing user.
                 update_user_meta( $user_id, 'pb_google_id', $google_id );
@@ -317,19 +347,63 @@ class Peanut_Booker_Google_Auth {
                 }
                 break;
 
-            case 'link':
-                if ( ! is_user_logged_in() ) {
-                    return new WP_Error( 'not_logged_in', __( 'You must be logged in to link your Google account.', 'peanut-booker' ) );
-                }
-                $current_user_id = get_current_user_id();
-                update_user_meta( $current_user_id, 'pb_google_id', $google_id );
-                break;
-
             default:
                 return new WP_Error( 'invalid_action', __( 'Invalid action.', 'peanut-booker' ) );
         }
 
         return true;
+    }
+
+    /**
+     * Whether Google reports the account email as verified.
+     *
+     * The v2 userinfo endpoint returns `verified_email`; OpenID Connect
+     * userinfo returns `email_verified`. Anything other than true is unverified.
+     *
+     * @param array $google_user Google user data.
+     * @return bool
+     */
+    private static function is_verified_email( $google_user ) {
+        foreach ( array( 'verified_email', 'email_verified' ) as $claim ) {
+            if ( isset( $google_user[ $claim ] ) && ( true === $google_user[ $claim ] || 'true' === $google_user[ $claim ] ) ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Whether an account is too privileged to be linked by email match.
+     *
+     * Administrators, editors and anyone holding a Peanut Booker management
+     * capability (pb_manage_*), or core capabilities those roles carry.
+     *
+     * @param WP_User $user User.
+     * @return bool
+     */
+    private static function is_privileged_user( $user ) {
+        if ( array_intersect( array( 'administrator', 'editor' ), (array) $user->roles ) ) {
+            return true;
+        }
+
+        if ( is_multisite() && is_super_admin( $user->ID ) ) {
+            return true;
+        }
+
+        foreach ( array( 'manage_options', 'edit_others_posts', 'promote_users', 'edit_users' ) as $cap ) {
+            if ( user_can( $user, $cap ) ) {
+                return true;
+            }
+        }
+
+        foreach ( (array) $user->allcaps as $cap => $granted ) {
+            if ( $granted && 0 === strpos( (string) $cap, 'pb_manage_' ) ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

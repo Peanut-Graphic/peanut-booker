@@ -22,6 +22,7 @@ class Peanut_Booker_Rate_Limiter {
         'review' => ['limit' => 5, 'window' => 300],           // 5 reviews per 5 minutes
         'signup' => ['limit' => 5, 'window' => 300],           // 5 signups per 5 minutes
         'general' => ['limit' => 60, 'window' => 60],          // 60 requests per minute (for GET)
+        'tracking' => ['limit' => 30, 'window' => 60],         // 30 public microsite tracking pings per minute
     ];
 
     /**

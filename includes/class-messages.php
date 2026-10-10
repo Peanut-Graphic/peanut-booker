@@ -71,6 +71,77 @@ class Peanut_Booker_Messages {
 	}
 
 	/**
+	 * Whether a user may send a message to another user.
+	 *
+	 * Allowed when the two are the customer and the performer of a booking
+	 * (and, if a booking ID is given, it is one of their bookings), when the
+	 * sender manages bookings, or when the sender is replying to a message the
+	 * recipient sent them.
+	 *
+	 * @param int      $sender_id    Sender user ID.
+	 * @param int      $recipient_id Recipient user ID.
+	 * @param int|null $booking_id   Optional booking the message is about.
+	 * @return bool
+	 */
+	public static function can_message( $sender_id, $recipient_id, $booking_id = null ) {
+		global $wpdb;
+
+		$sender_id    = absint( $sender_id );
+		$recipient_id = absint( $recipient_id );
+		$booking_id   = $booking_id ? absint( $booking_id ) : 0;
+
+		if ( ! $sender_id || ! $recipient_id || $sender_id === $recipient_id ) {
+			return false;
+		}
+
+		$bookings   = $wpdb->prefix . 'pb_bookings';
+		$performers = $wpdb->prefix . 'pb_performers';
+
+		if ( user_can( $sender_id, 'pb_manage_bookings' ) ) {
+			if ( ! $booking_id ) {
+				return true;
+			}
+			// Staff may attach any booking, as long as it exists.
+			return (bool) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bookings WHERE id = %d", $booking_id ) );
+		}
+
+		$shared_booking = (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT b.id FROM $bookings b
+				INNER JOIN $performers p ON p.id = b.performer_id
+				WHERE ( ( b.customer_id = %d AND p.user_id = %d ) OR ( b.customer_id = %d AND p.user_id = %d ) )
+				AND ( %d = 0 OR b.id = %d )
+				LIMIT 1",
+				$sender_id,
+				$recipient_id,
+				$recipient_id,
+				$sender_id,
+				$booking_id,
+				$booking_id
+			)
+		);
+
+		if ( $shared_booking ) {
+			return true;
+		}
+
+		// A reply to someone who messaged you first (e.g. staff), not tied to
+		// a booking you are not part of.
+		if ( ! $booking_id ) {
+			$messages = $wpdb->prefix . 'pb_messages';
+			return (bool) $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT id FROM $messages WHERE sender_id = %d AND recipient_id = %d LIMIT 1",
+					$recipient_id,
+					$sender_id
+				)
+			);
+		}
+
+		return false;
+	}
+
+	/**
 	 * Get messages between two users.
 	 *
 	 * @param int $user1_id First user ID.
@@ -261,13 +332,23 @@ class Peanut_Booker_Messages {
 			wp_send_json_error( array( 'message' => __( 'You must be logged in.', 'peanut-booker' ) ) );
 		}
 
-		$sender_id    = get_current_user_id();
-		$recipient_id = absint( $_POST['recipient_id'] ?? 0 );
-		$message      = sanitize_textarea_field( $_POST['message'] ?? '' );
-		$booking_id   = isset( $_POST['booking_id'] ) ? absint( $_POST['booking_id'] ) : null;
+		Peanut_Booker_Rate_Limiter::enforce_ajax( 'message' );
 
-		if ( ! $recipient_id ) {
+		$sender_id    = get_current_user_id();
+		$recipient_id = absint( wp_unslash( $_POST['recipient_id'] ?? 0 ) );
+		$message      = sanitize_textarea_field( wp_unslash( $_POST['message'] ?? '' ) );
+		$booking_id   = ! empty( $_POST['booking_id'] ) ? absint( wp_unslash( $_POST['booking_id'] ) ) : null;
+
+		if ( ! $recipient_id || ! get_userdata( $recipient_id ) ) {
 			wp_send_json_error( array( 'message' => __( 'Invalid recipient.', 'peanut-booker' ) ) );
+		}
+
+		// SECURITY: Only people with a booking between them (or staff, or
+		// someone replying to a message they received) may message each other.
+		// Otherwise any account could message, and trigger notification email
+		// to, any user ID, including administrators.
+		if ( ! self::can_message( $sender_id, $recipient_id, $booking_id ) ) {
+			wp_send_json_error( array( 'message' => __( 'You can only message people you have a booking with.', 'peanut-booker' ) ), 403 );
 		}
 
 		$result = self::send( $sender_id, $recipient_id, $message, $booking_id );

@@ -12,6 +12,6 @@ final class PublicPerformerBoundaryTest extends TestCase {
         fclose($pipes[1]);
         fclose($pipes[2]);
         $this->assertSame(0, proc_close($process), $output);
-        $this->assertStringContainsString('42 checks, 0 failures', $output);
+        $this->assertStringContainsString('53 checks, 0 failures', $output);
     }
 }
