@@ -167,34 +167,22 @@ trait Peanut_Booker_REST_Admin_Payouts {
 	 * @return WP_REST_Response|WP_Error Response object or error.
 	 */
 	public function release_payout( $request ) {
-		$booking_id = $request['booking_id'];
+		$released = Peanut_Booker_Booking::release_escrow( absint( $request['booking_id'] ), get_current_user_id() );
 
-		$booking = Peanut_Booker_Database::get_row( 'bookings', array( 'id' => $booking_id ) );
-
-		if ( ! $booking ) {
-			return new WP_Error( 'not_found', 'Booking not found.', array( 'status' => 404 ) );
+		if ( is_wp_error( $released ) ) {
+			$data = $released->get_error_data();
+			return new WP_REST_Response(
+				array(
+					'success' => false,
+					'code'    => $released->get_error_code(),
+					'message' => $released->get_error_message(),
+				),
+				isset( $data['status'] ) ? (int) $data['status'] : 400
+			);
 		}
-
-		if ( 'completed' !== $booking->booking_status ) {
-			return new WP_Error( 'invalid_status', 'Booking must be completed to release payout.', array( 'status' => 400 ) );
-		}
-
-		if ( 'released' === $booking->escrow_status ) {
-			return new WP_Error( 'already_released', 'Payout already released.', array( 'status' => 400 ) );
-		}
-
-		Peanut_Booker_Database::update(
-			'bookings',
-			array(
-				'escrow_status' => 'released',
-				'payout_date'   => current_time( 'mysql' ),
-				'updated_at'    => current_time( 'mysql' ),
-			),
-			array( 'id' => $booking_id )
-		);
 
 		// Send notification to performer.
-		do_action( 'peanut_booker_payout_released', $booking_id );
+		do_action( 'peanut_booker_payout_released', absint( $request['booking_id'] ) );
 
 		return rest_ensure_response(
 			array(
@@ -207,6 +195,10 @@ trait Peanut_Booker_REST_Admin_Payouts {
 	/**
 	 * Bulk release payouts.
 	 *
+	 * Applies exactly the same eligibility rule as a single release
+	 * (Peanut_Booker_Booking::is_payout_eligible()); ineligible bookings are
+	 * skipped and reported with the reason.
+	 *
 	 * @param WP_REST_Request $request Request object.
 	 * @return WP_REST_Response|WP_Error Response object or error.
 	 */
@@ -218,29 +210,25 @@ trait Peanut_Booker_REST_Admin_Payouts {
 		}
 
 		$released = 0;
-		foreach ( $booking_ids as $booking_id ) {
-			$booking = Peanut_Booker_Database::get_row( 'bookings', array( 'id' => $booking_id ) );
+		$skipped  = array();
+		foreach ( array_unique( array_map( 'absint', $booking_ids ) ) as $booking_id ) {
+			$result = Peanut_Booker_Booking::release_escrow( $booking_id, get_current_user_id() );
 
-			if ( $booking && 'completed' === $booking->booking_status && 'held' === $booking->escrow_status ) {
-				Peanut_Booker_Database::update(
-					'bookings',
-					array(
-						'escrow_status' => 'released',
-						'payout_date'   => current_time( 'mysql' ),
-						'updated_at'    => current_time( 'mysql' ),
-					),
-					array( 'id' => $booking_id )
-				);
-				$released++;
-
-				do_action( 'peanut_booker_payout_released', $booking_id );
+			if ( is_wp_error( $result ) ) {
+				$skipped[ $booking_id ] = $result->get_error_message();
+				continue;
 			}
+
+			$released++;
+			do_action( 'peanut_booker_payout_released', $booking_id );
 		}
 
 		return rest_ensure_response(
 			array(
-				'success' => true,
-				'message' => sprintf( 'Released %d payout(s).', $released ),
+				'success'  => true,
+				'released' => $released,
+				'skipped'  => $skipped,
+				'message'  => sprintf( 'Released %d payout(s); skipped %d.', $released, count( $skipped ) ),
 			)
 		);
 	}

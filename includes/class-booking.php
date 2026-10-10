@@ -137,13 +137,74 @@ class Peanut_Booker_Booking {
     }
 
     /**
+     * Resolve the price of a new booking from a server-side source.
+     *
+     * - With a bid_id: the bid must exist, belong to this performer and have
+     *   been accepted; its bid_amount is the price (the performer set it).
+     * - Otherwise the performer must have an hourly rate, and the requested
+     *   total must match the server-side calculation (existing behaviour).
+     * - A performer with no hourly rate and no accepted bid has no price, so
+     *   the booking is refused rather than priced by the customer.
+     *
+     * @param object $performer Performer row.
+     * @param array  $data      Booking data passed to create().
+     * @return float|WP_Error Price or error.
+     */
+    private static function resolve_booking_price( $performer, $data ) {
+        if ( ! empty( $data['bid_id'] ) ) {
+            $bid = Peanut_Booker_Database::get_row( 'bids', array( 'id' => absint( $data['bid_id'] ) ) );
+
+            if ( ! $bid || (int) $bid->performer_id !== (int) $performer->id || 'accepted' !== $bid->status ) {
+                return new WP_Error( 'invalid_bid', __( 'This booking does not match an accepted bid.', 'peanut-booker' ) );
+            }
+
+            $bid_amount = round( floatval( $bid->bid_amount ), 2 );
+            if ( $bid_amount <= 0 ) {
+                return new WP_Error( 'invalid_bid', __( 'The accepted bid has no price.', 'peanut-booker' ) );
+            }
+
+            return $bid_amount;
+        }
+
+        if ( floatval( $performer->hourly_rate ) <= 0 ) {
+            return new WP_Error(
+                'price_required',
+                __( 'This performer has not set a price. Post your event to the market to receive a quote.', 'peanut-booker' )
+            );
+        }
+
+        if ( empty( $data['total_amount'] ) ) {
+            return new WP_Error( 'missing_field', sprintf( __( 'Missing required field: %s', 'peanut-booker' ), 'total_amount' ) );
+        }
+
+        $calculated_amount = self::calculate_booking_total(
+            $performer->id,
+            $data['event_start_time'] ?? '',
+            $data['event_end_time'] ?? ''
+        );
+        if ( is_wp_error( $calculated_amount ) ) {
+            return $calculated_amount;
+        }
+
+        $client_amount = floatval( $data['total_amount'] );
+        $verify_result = self::verify_booking_amount( $client_amount, $calculated_amount );
+        if ( is_wp_error( $verify_result ) ) {
+            return $verify_result;
+        }
+
+        return $client_amount;
+    }
+
+    /**
      * Create a new booking.
      *
      * @param array $data Booking data.
      * @return int|WP_Error Booking ID or error.
      */
     public static function create( $data ) {
-        $required = array( 'performer_id', 'customer_id', 'event_date', 'total_amount' );
+        // total_amount is not required here: when the price comes from an
+        // accepted bid it is read from the bid, never from the caller.
+        $required = array( 'performer_id', 'customer_id', 'event_date' );
 
         foreach ( $required as $field ) {
             if ( empty( $data[ $field ] ) ) {
@@ -166,26 +227,15 @@ class Peanut_Booker_Booking {
             return new WP_Error( 'performer_unavailable', __( 'Performer profile is unavailable.', 'peanut-booker' ) );
         }
 
-        // Server-side amount verification (if performer has hourly rate).
-        if ( $performer->hourly_rate > 0 ) {
-            $calculated_amount = self::calculate_booking_total(
-                $data['performer_id'],
-                $data['event_start_time'] ?? '',
-                $data['event_end_time'] ?? ''
-            );
-
-            if ( ! is_wp_error( $calculated_amount ) ) {
-                $client_amount = floatval( $data['total_amount'] );
-                $verify_result = self::verify_booking_amount( $client_amount, $calculated_amount );
-
-                if ( is_wp_error( $verify_result ) ) {
-                    return $verify_result;
-                }
-            }
+        // The price must come from the server: an accepted bid the performer
+        // made, or the performer's hourly rate. A caller-supplied total is
+        // never the price on its own.
+        $total_amount = self::resolve_booking_price( $performer, $data );
+        if ( is_wp_error( $total_amount ) ) {
+            return $total_amount;
         }
 
         // Calculate amounts.
-        $total_amount       = floatval( $data['total_amount'] );
         $deposit_percentage = $performer->deposit_percentage;
         $deposit_amount     = round( $total_amount * ( $deposit_percentage / 100 ), 2 );
         $remaining_amount   = $total_amount - $deposit_amount;
@@ -489,8 +539,19 @@ class Peanut_Booker_Booking {
             return;
         }
 
-        // Release escrow to performer.
-        self::release_escrow( $booking_id );
+        // Release escrow to performer, only if the booking was paid in full.
+        // A booking completed with only a deposit (or nothing) collected keeps
+        // its escrow state for staff to resolve; it is not paid out.
+        $released = self::release_escrow( $booking_id );
+        if ( is_wp_error( $released ) ) {
+            error_log(
+                sprintf(
+                    'Peanut Booker: booking %d completed but escrow not released: %s',
+                    absint( $booking_id ),
+                    $released->get_error_code()
+                )
+            );
+        }
 
         // Update performer stats.
         $performer = Peanut_Booker_Performer::get( $booking->performer_id );
@@ -537,16 +598,95 @@ class Peanut_Booker_Booking {
     }
 
     /**
+     * Whether a booking's escrow may be paid out to the performer.
+     *
+     * A payout sends the performer `performer_payout`: the booking TOTAL less
+     * commission. That money is only held once the customer has paid in full,
+     * so a payout requires all of:
+     * - booking_status = completed (the event happened),
+     * - fully_paid = 1 (deposit and balance collected),
+     * - escrow_status = full_held (still held: not pending, deposit_held,
+     *   released or refunded).
+     * A deposit-only booking is never paid out; its deposit covers only part
+     * of the payout. Collect the balance first.
+     *
+     * @param object|null $booking Booking row.
+     * @return true|WP_Error True when eligible, otherwise why not.
+     */
+    public static function is_payout_eligible( $booking ) {
+        if ( ! $booking ) {
+            return new WP_Error( 'not_found', __( 'Booking not found.', 'peanut-booker' ), array( 'status' => 404 ) );
+        }
+
+        if ( self::ESCROW_RELEASED === $booking->escrow_status ) {
+            return new WP_Error( 'already_released', __( 'Payout already released.', 'peanut-booker' ), array( 'status' => 409 ) );
+        }
+
+        if ( self::STATUS_COMPLETED !== $booking->booking_status ) {
+            return new WP_Error( 'invalid_status', __( 'Booking must be completed to release payout.', 'peanut-booker' ), array( 'status' => 409 ) );
+        }
+
+        if ( empty( $booking->fully_paid ) || self::ESCROW_FULL !== $booking->escrow_status ) {
+            return new WP_Error(
+                'not_paid_in_full',
+                sprintf(
+                    /* translators: %s: escrow status */
+                    __( 'Payout can only be released once the booking is paid in full and held in escrow (escrow status is "%s"). Collect the remaining balance first.', 'peanut-booker' ),
+                    $booking->escrow_status
+                ),
+                array( 'status' => 409 )
+            );
+        }
+
+        return true;
+    }
+
+    /**
      * Release escrow funds to performer.
      *
-     * @param int $booking_id Booking ID.
-     * @return bool Success.
+     * Refuses bookings that are not eligible (see is_payout_eligible()). The
+     * escrow state change is conditional on the booking still being
+     * full_held, so concurrent releases cannot pay twice.
+     *
+     * @param int $booking_id  Booking ID.
+     * @param int $released_by User who released it (0 = automatic, on completion).
+     * @return true|WP_Error True on release, WP_Error when refused.
      */
-    public static function release_escrow( $booking_id ) {
-        $booking = self::get( $booking_id );
-        if ( ! $booking ) {
-            return false;
+    public static function release_escrow( $booking_id, $released_by = 0 ) {
+        $booking  = self::get( $booking_id );
+        $eligible = self::is_payout_eligible( $booking );
+        if ( is_wp_error( $eligible ) ) {
+            return $eligible;
         }
+
+        $now = current_time( 'mysql' );
+
+        // Claim the release atomically: only one caller moves full_held -> released.
+        $claimed = Peanut_Booker_Database::update(
+            'bookings',
+            array(
+                'escrow_status' => self::ESCROW_RELEASED,
+                'payout_date'   => $now,
+            ),
+            array(
+                'id'            => absint( $booking_id ),
+                'escrow_status' => self::ESCROW_FULL,
+            )
+        );
+        if ( ! $claimed ) {
+            return new WP_Error( 'already_released', __( 'Payout already released.', 'peanut-booker' ), array( 'status' => 409 ) );
+        }
+
+        $released_by = absint( $released_by );
+        $releaser    = $released_by ? get_userdata( $released_by ) : null;
+        $notes       = $released_by
+            ? sprintf(
+                /* translators: 1: user ID, 2: user login */
+                __( 'Escrow released to performer by user #%1$d (%2$s)', 'peanut-booker' ),
+                $released_by,
+                $releaser ? $releaser->user_login : __( 'unknown', 'peanut-booker' )
+            )
+            : __( 'Escrow released to performer automatically on completion', 'peanut-booker' );
 
         // Record transaction.
         Peanut_Booker_Database::insert(
@@ -558,16 +698,7 @@ class Peanut_Booker_Booking {
                 'amount'           => $booking->performer_payout,
                 'payee_id'         => $booking->performer_id,
                 'status'           => 'completed',
-                'notes'            => __( 'Escrow released to performer', 'peanut-booker' ),
-            )
-        );
-
-        // Update booking escrow status.
-        self::update(
-            $booking_id,
-            array(
-                'escrow_status' => self::ESCROW_RELEASED,
-                'payout_date'   => current_time( 'mysql' ),
+                'notes'            => $notes,
             )
         );
 
@@ -869,19 +1000,13 @@ class Peanut_Booker_Booking {
      * @return string Checkout URL.
      */
     public static function get_checkout_url( $booking_id ) {
-        $booking = self::get( $booking_id );
-        if ( ! $booking ) {
+        // One source for checkout links: the WooCommerce integration adds the
+        // CSRF nonce its checkout handler requires and refuses paid bookings.
+        if ( ! class_exists( 'Peanut_Booker_WooCommerce' ) ) {
             return '';
         }
 
-        // Add booking product to cart and redirect to checkout.
-        return add_query_arg(
-            array(
-                'pb_booking' => $booking_id,
-                'action'     => 'checkout',
-            ),
-            wc_get_checkout_url()
-        );
+        return Peanut_Booker_WooCommerce::get_checkout_url( $booking_id );
     }
 
     /**
