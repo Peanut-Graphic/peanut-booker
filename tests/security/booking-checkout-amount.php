@@ -174,7 +174,7 @@ class Peanut_Booker_Booking {
         return true;
     }
     public static function update_status( $id, $status ) {
-        $GLOBALS['bookings'][ $id ]['status'] = $status;
+        $GLOBALS['bookings'][ $id ]['booking_status'] = $status;
         return true;
     }
 }
@@ -190,6 +190,15 @@ require dirname( __DIR__, 2 ) . '/includes/class-woocommerce.php';
 
 $failures = array();
 $checks   = 0;
+
+// Any PHP warning/notice from the code under test is a failure (the checkout
+// handler once read a column that does not exist and refused every booking).
+set_error_handler(
+    static function ( $severity, $message, $file, $line ) {
+        $GLOBALS['failures'][] = "PHP error: $message at " . basename( $file ) . ":$line";
+        return true;
+    }
+);
 
 function verify( bool $condition, string $message ): void {
     ++$GLOBALS['checks'];
@@ -207,7 +216,7 @@ function fixture_booking( int $id, float $total, float $deposit, array $override
             'performer_id'        => 7,
             'event_title'         => 'Synthetic event',
             'event_date'          => '2026-12-01',
-            'status'              => 'pending',
+            'booking_status'      => 'pending',
             'total_amount'        => number_format( $total, 2, '.', '' ),
             'deposit_amount'      => number_format( $deposit, 2, '.', '' ),
             'remaining_amount'    => number_format( $total - $deposit, 2, '.', '' ),
@@ -232,6 +241,8 @@ function start_checkout( Peanut_Booker_WooCommerce $wc, int $booking_id, string 
     } catch ( SyntheticRedirect $redirect ) {
         // Expected: the handler redirects to checkout and exits.
     }
+    verify( array() === array_filter( $GLOBALS['notices'], static function ( $notice ) { return 'error' === $notice[0]; } ), "checkout for booking $booking_id raises no error notice" );
+    $GLOBALS['notices'] = array();
     $keys = array_keys( WC()->cart->get_cart() );
     return $keys[0] ?? null;
 }
@@ -340,7 +351,7 @@ $plugin->payment_complete( 1005 );
 verify( 1 === (int) $GLOBALS['bookings'][5]['deposit_paid'], 'correct deposit marks deposit_paid' );
 verify( 'deposit_held' === $GLOBALS['bookings'][5]['escrow_status'], 'correct deposit holds escrow' );
 verify( 0 === (int) $GLOBALS['bookings'][5]['fully_paid'], 'deposit does not mark fully paid' );
-verify( 'confirmed' === $GLOBALS['bookings'][5]['status'], 'confirmed performer + paid deposit confirms booking' );
+verify( 'confirmed' === $GLOBALS['bookings'][5]['booking_status'], 'confirmed performer + paid deposit confirms booking' );
 verify( 'escrow-held' === $order->status, 'paid deposit order moves to escrow-held' );
 $rows = completed_transactions( 5 );
 verify( 1 === count( $rows ) && abs( (float) $rows[0]['amount'] - 125.00 ) < 0.001 && 'deposit' === $rows[0]['transaction_type'], 'one completed 125.00 deposit transaction' );

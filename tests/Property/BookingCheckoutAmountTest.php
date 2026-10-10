@@ -13,6 +13,6 @@ final class BookingCheckoutAmountTest extends TestCase {
         fclose($pipes[1]);
         fclose($pipes[2]);
         $this->assertSame(0, proc_close($process), $output);
-        $this->assertStringContainsString('35 checks, 0 failures', $output);
+        $this->assertStringContainsString('44 checks, 0 failures', $output);
     }
 }

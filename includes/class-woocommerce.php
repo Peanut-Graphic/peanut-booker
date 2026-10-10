@@ -178,12 +178,12 @@ class Peanut_Booker_WooCommerce {
             Peanut_Booker_Booking::STATUS_PENDING,
             Peanut_Booker_Booking::STATUS_CONFIRMED,
         );
-        if ( ! in_array( $booking->status, $valid_checkout_statuses, true ) ) {
+        if ( ! in_array( $booking->booking_status, $valid_checkout_statuses, true ) ) {
             wc_add_notice(
                 sprintf(
                     /* translators: %s: booking status */
                     __( 'This booking cannot be checked out. Current status: %s', 'peanut-booker' ),
-                    esc_html( $booking->status )
+                    esc_html( $booking->booking_status )
                 ),
                 'error'
             );
