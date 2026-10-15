@@ -1,11 +1,4 @@
 import { expect } from 'vitest';
+import { toHaveNoViolations } from 'jest-axe';
 
-expect.extend({
-  async toHaveNoViolations() {
-    return {
-      pass: false,
-      message: () =>
-        'Accessibility matcher unavailable: install the optional jest-axe dependency before running a11y suites.',
-    };
-  },
-});
+expect.extend(toHaveNoViolations);
