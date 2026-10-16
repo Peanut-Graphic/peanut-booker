@@ -6,7 +6,7 @@ All notable changes to Peanut Booker will be documented in this file.
 
 ### Fixed
 - Exclude vendored Git metadata from release ZIPs while preserving production dependencies and signed-update verification.
-- Rebuild the admin frontend with the reviewed dependency updates.
+- Rebuild the admin frontend with the reviewed dependency updates and patch the brace-expansion development dependency advisory.
 - Verify the actual production package in release-readiness CI.
 
 ## [1.8.1] - 2026-10-10
