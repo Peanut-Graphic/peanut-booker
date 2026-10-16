@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: "8.0"
           coverage: none
@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: "8.1"
           coverage: none
@@ -59,7 +59,7 @@ jobs:
       MIN_COVERAGE: "30"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: "8.3"
           coverage: pcov
@@ -72,7 +72,7 @@ jobs:
         run: php coverage-gate.php tests/coverage/security-core-clover.xml "$MIN_COVERAGE"
       - name: Upload security-core coverage evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: security-core-coverage
           path: tests/coverage/security-core-*
@@ -82,7 +82,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: "8.3"
           tools: composer
@@ -103,7 +103,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup PHP
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: "8.3"
           coverage: none
@@ -136,3 +136,24 @@ jobs:
       # configs-sync and surfaced in the weekly audit. PAR-406.
       - name: Could this be released at all?
         run: bash .peanut/release/verify-release-readiness.sh peanut-booker
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: "8.2"
+          coverage: none
+          tools: composer
+      - name: Reject Git metadata in release artifacts
+        run: bash tests/release-artifact.test.sh
+      - name: Build and inspect an unsigned production artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          composer install --no-dev --prefer-source --optimize-autoloader --no-interaction
+          source .peanut/release/plugin-release-config.sh
+          peanut_release_config peanut-booker
+          stage="$(mktemp -d)"
+          trap 'rm -rf "$stage"' EXIT
+          mkdir -p "$stage/peanut-booker"
+          for item in "${INCLUDE[@]}"; do cp -a "$item" "$stage/peanut-booker/"; done
+          bash .peanut/release/package-plugin-artifact.sh "$stage" peanut-booker "$stage/release.zip"
+          unzip -q "$stage/release.zip" -d "$stage/extracted"
+          php -r 'define("ABSPATH", "/tmp/"); require $argv[1]; exit(class_exists("Peanut\\FormCore\\Update\\SignedUpdateGate") ? 0 : 1);' "$stage/extracted/peanut-booker/vendor/autoload.php"

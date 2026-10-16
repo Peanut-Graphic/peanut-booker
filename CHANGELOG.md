@@ -8,7 +8,14 @@
 
 All notable changes to Peanut Booker will be documented in this file.
 
-## [Unreleased]
+## [1.8.2] - 2026-10-16
+
+### Fixed
+- Exclude vendored Git metadata from release ZIPs while preserving production dependencies and signed-update verification.
+- Rebuild the admin frontend with the reviewed dependency updates and patch the brace-expansion development dependency advisory.
+- Verify the actual production package in release-readiness CI.
+
+## [1.8.1] - 2026-10-10
 
 ### Security
 - **Bookings were marked deposit-paid when no money was collected.** The booking product is priced at $0 and nothing re-priced the cart, so classic checkout totalled $0, WooCommerce completed the order without payment, and Booker still set `deposit_paid=1` / `escrow_status=deposit_held` (a later payout release would then pay out money never taken). The cart line is now priced from the stored booking in `woocommerce_before_calculate_totals`; checkout refuses booking lines that cannot be priced; the order total is no longer overwritten after WooCommerce totals the cart; and `woocommerce_payment_complete` only marks a booking paid when the order total is above zero and both the booking line and the order total before tax equal what the booking owes (to the cent). Anything else leaves the booking unpaid, puts the order on hold with a note and `_pb_payment_review` meta, writes a `needs_review` transaction row for the booking, and fires `peanut_booker_payment_review_required`. Payment is applied at most once per order, and a second order for an already-paid deposit is held instead of recorded.
